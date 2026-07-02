@@ -8,7 +8,7 @@ RUN apk update && apk add --no-cache git
 WORKDIR /app
 
 COPY go.mod ./
-# COPY go.sum ./ 
+COPY go.sum ./
 
 RUN go mod download
 
@@ -24,11 +24,12 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata
 
 ENV TZ=UTC
+ENV PORT=8080
 
 WORKDIR /root/
 
 COPY --from=builder /app/bin/hirely-api .
 
-EXPOSE 8080
+EXPOSE $PORT
 
 CMD ["./hirely-api"]
