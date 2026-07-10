@@ -1,7 +1,5 @@
 https://docs.cloud.google.com/apis/design
 
-docker build -t hirely-api:latest .
-docker run -p 8080:8080 hirely-api:latest
 
 ```txt
 hirely-api/
@@ -25,4 +23,26 @@ hirely-api/
 │               └── model.go        # Structs com tags do GORM (CandidaturaDB)
 ├── go.mod
 └── go.sum
+```
+
+## How to Run
+
+
+Create the postgres database
+
+```bash
+psql -U postgres -c "CREATE DATABASE hirely;"
+```
+
+Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Build and run the Docker container
+
+```bash
+docker build -t hirely-api:latest .
+docker run -p 8080:8080 hirely-api:latest
 ```
