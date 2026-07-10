@@ -2,13 +2,21 @@ package config
 
 import (
 	"log"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port        string `env:"PORT" envDefault:"8080"`
+	// Server
+	Port         string        `env:"PORT" envDefault:"8080"`
+	ENV          string        `env:"ENV" envDefault:"development"`
+	ReadTimeout  time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
+	WriteTimeout time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"20s"`
+	IdleTimeout  time.Duration `env:"SERVER_IDLE_TIMEOUT" envDefault:"120s"`
+
+	// Database
 	DB_HOST     string `env:"DB_HOST,required"`
 	DB_PORT     string `env:"DB_PORT,required"`
 	DB_USER     string `env:"DB_USER,required"`

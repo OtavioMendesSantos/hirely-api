@@ -2,7 +2,8 @@ package postgres
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -24,17 +25,26 @@ func NewConnection(cfg DBConfig) (*gorm.DB, error) {
 	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("falha ao conectar ao banco de dados: %w", err)
+		return nil, err
 	}
 
-	// Executa a migração automática das tabelas registradas
-	log.Println("Executando migrações do banco de dados...")
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB.SetConnMaxLifetime(time.Minute * 5)
+	sqlDB.SetMaxIdleConns(0)
+	sqlDB.SetMaxOpenConns(10)
+
+	slog.Info("Executing database migrations", slog.String("operation", "DatabaseMigration"))
+
 	err = db.AutoMigrate(&UserModel{})
 	if err != nil {
-		return nil, fmt.Errorf("falha ao executar AutoMigrate: %w", err)
+		return nil, fmt.Errorf("database migration failed: %w", err)
 	}
 
 	return db, nil
