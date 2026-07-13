@@ -15,6 +15,8 @@ type Config struct {
 	ReadTimeout  time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
 	WriteTimeout time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"20s"`
 	IdleTimeout  time.Duration `env:"SERVER_IDLE_TIMEOUT" envDefault:"120s"`
+	JWTSecret    string        `env:"JWT_SECRET"`
+	JWTExpiresIn time.Duration `env:"JWT_EXPIRES_IN" envDefault:"3d"`
 
 	// Database
 	DB_HOST     string `env:"DB_HOST,required"`

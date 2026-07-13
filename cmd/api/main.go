@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	adapterHttp "hirely-api/internal/adapters/http"
+	"hirely-api/internal/adapters/http/handlers"
 	"hirely-api/internal/adapters/logger"
 	"hirely-api/internal/adapters/storage/postgres"
 	"hirely-api/internal/config"
+	"hirely-api/internal/core/services"
 	"log/slog"
 	"net/http"
 	"os"
@@ -31,13 +33,13 @@ func main() {
 	logger.Setup(cfg.ENV, "hirely-api")
 	slog.Info("Starting API...", slog.String("operation", "SystemBoot"))
 
-	initDB(cfg)
+	db := initDB(cfg)
 
-	// userRepo := postgres.NewUserRepository(db)
-	// authService := services.NewAuthService(userRepo)
-	// authHandler := handlers.NewAuthHandler(authService)
+	userRepo := postgres.NewUserRepository(db)
+	authService := services.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpiresIn)
+	authHandler := handlers.NewAuthHandler(authService)
 
-	mux := adapterHttp.SetupRoutes()
+	mux := adapterHttp.SetupRoutes(authHandler)
 
 	startHTTPServer(cfg, mux)
 }
