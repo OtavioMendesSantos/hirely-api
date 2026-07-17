@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"strings"
@@ -30,4 +31,20 @@ func Setup(env, serviceName string) {
 	)
 
 	slog.SetDefault(logger)
+}
+
+type traceKey struct{}
+
+func WithTraceID(ctx context.Context, traceID string) context.Context {
+	return context.WithValue(ctx, traceKey{}, traceID)
+}
+
+func GetTraceID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if traceID, ok := ctx.Value(traceKey{}).(string); ok {
+		return traceID
+	}
+	return ""
 }

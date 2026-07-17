@@ -39,3 +39,19 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 
 	return model.ToDomain(), nil
 }
+
+// FindByID finds a user by their unique ID.
+func (r *UserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
+	var model UserModel
+
+	result := r.db.WithContext(ctx).Where("id = ?", id).First(&model)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return model.ToDomain(), nil
+}

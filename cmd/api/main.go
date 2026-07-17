@@ -37,9 +37,12 @@ func main() {
 
 	userRepo := postgres.NewUserRepository(db)
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpiresIn)
+	userService := services.NewUserService(userRepo)
 	authHandler := handlers.NewAuthHandler(authService)
+	userHandler := handlers.NewUserHandler(userService)
+	healthHandler := handlers.NewHealthHandler()
 
-	mux := adapterHttp.SetupRoutes(authHandler)
+	mux := adapterHttp.SetupRoutes(authHandler, userHandler, healthHandler, cfg.JWTSecret)
 
 	startHTTPServer(cfg, mux)
 }

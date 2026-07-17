@@ -194,6 +194,7 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 | `POST`      | `/v1/users:login`                                          | Login com Email e Senha, retornando token JWT (padrão Custom Method).  | Pública                    |
 | `GET`       | `/v1/users:oauthUrl?provider={provider}`                   | Retorna URL de autorização OAuth 2.0 (`google` ou `linkedin`).         | Pública                    |
 | `POST`      | `/v1/users:oauthLogin`                                     | Recebe código OAuth (`provider`, `code`), autentica e retorna token.   | Pública                    |
+| `GET`       | `/v1/users/me`                                             | Retorna informações do usuário autenticado.                            | JWT                        |
 | `POST`      | `/v1/users/{user_id}/applications`                         | Cria uma nova candidatura para o usuário.                              | JWT (`user_id` compatível) |
 | `GET`       | `/v1/users/{user_id}/applications`                         | Lista candidaturas com suporte a filtros e paginação.                  | JWT                        |
 | `GET`       | `/v1/users/{user_id}/applications/{application_id}`        | Retorna detalhes de uma candidatura (incluindo tags e timeline).       | JWT                        |
@@ -230,14 +231,17 @@ O endpoint de listagem aceita os seguintes parâmetros de consulta (_query param
 }
 ```
 
-#### Resposta de Registro (`POST /v1/users`)
+#### Resposta de Registro (`AuthResponse` - `POST /v1/users`)
 
 ```json
 {
-  "id": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
-  "name": "Otavio Mendes",
-  "email": "otavio@hirely.app",
-  "createTime": "2026-07-13T19:00:00Z"
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+    "name": "Otavio Mendes",
+    "email": "otavio@hirely.app",
+    "createTime": "2026-07-13T19:00:00Z"
+  }
 }
 ```
 
@@ -250,11 +254,17 @@ O endpoint de listagem aceita os seguintes parâmetros de consulta (_query param
 }
 ```
 
-#### Resposta de Login Tradicional (`POST /v1/users:login`)
+#### Resposta de Login Tradicional (`AuthResponse` - `POST /v1/users:login`)
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+    "name": "Otavio Mendes",
+    "email": "otavio@hirely.app",
+    "createTime": "2026-07-13T19:00:00Z"
+  }
 }
 ```
 
@@ -268,18 +278,28 @@ O endpoint de listagem aceita os seguintes parâmetros de consulta (_query param
 }
 ```
 
-#### Resposta de Autenticação Social / OAuth (`AuthResponse`)
+#### Resposta de Autenticação Social / OAuth (`AuthResponse` - `POST /v1/users:oauthLogin`)
 
 ```json
 {
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
     "name": "Otavio Mendes",
-    "email": "otavio@hirely.app"
-  },
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "Bearer",
-  "expires_in": 86400
+    "email": "otavio@hirely.app",
+    "createTime": "2026-07-13T19:00:00Z"
+  }
+}
+```
+
+#### Resposta do Perfil do Usuário Autenticado (`User` - `GET /v1/users/me`)
+
+```json
+{
+  "id": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+  "name": "Otavio Mendes",
+  "email": "otavio@hirely.app",
+  "createTime": "2026-07-13T19:00:00Z"
 }
 ```
 
