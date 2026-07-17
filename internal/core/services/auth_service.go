@@ -66,7 +66,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, name, email, plainPasswo
 		return nil, "", err
 	}
 
-	tokenString, err := s.generateToken(user)
+	tokenString, err := s.generateToken(user, s.jwtExpiresIn)
 	if err != nil {
 		return nil, "", err
 	}
@@ -74,7 +74,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, name, email, plainPasswo
 	return user, tokenString, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, email, plainPassword string) (*domain.User, string, error) {
+func (s *AuthService) Login(ctx context.Context, email, plainPassword string, rememberMe bool) (*domain.User, string, error) {
 	email = strings.TrimSpace(email)
 	if email == "" || plainPassword == "" {
 		return nil, "", domain.ErrInvalidInput
@@ -94,7 +94,12 @@ func (s *AuthService) Login(ctx context.Context, email, plainPassword string) (*
 		return nil, "", domain.ErrInvalidCredentials
 	}
 
-	tokenString, err := s.generateToken(user)
+	expiresIn := s.jwtExpiresIn
+	if rememberMe {
+		expiresIn = 30 * 24 * time.Hour
+	}
+
+	tokenString, err := s.generateToken(user, expiresIn)
 	if err != nil {
 		return nil, "", err
 	}
@@ -102,11 +107,12 @@ func (s *AuthService) Login(ctx context.Context, email, plainPassword string) (*
 	return user, tokenString, nil
 }
 
-func (s *AuthService) generateToken(user *domain.User) (string, error) {
+func (s *AuthService) generateToken(user *domain.User, expiresIn time.Duration) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":   user.ID,
 		"email": user.Email,
-		"exp":   time.Now().Add(s.jwtExpiresIn).Unix(),
+		"exp":   time.Now().Add(expiresIn).Unix(),
 	})
 	return token.SignedString([]byte(s.jwtSecret))
 }
+

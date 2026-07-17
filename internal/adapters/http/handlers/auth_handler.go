@@ -103,8 +103,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	RememberMe bool   `json:"rememberMe"`
 }
 
 func (req *LoginRequest) Validate() error {
@@ -143,7 +144,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, tokenString, err := h.authService.Login(r.Context(), req.Email, req.Password)
+	user, tokenString, err := h.authService.Login(r.Context(), req.Email, req.Password, req.RememberMe)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			dto.WriteError(w, http.StatusUnauthorized, "Invalid email or password", "UNAUTHENTICATED")

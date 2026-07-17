@@ -10,7 +10,7 @@ O **Hirely** é um aplicativo web focado na gestão, centralização e rastreabi
 
 - **[RF-01] Autenticação e Gestão de Usuários:**
   - _Registro Tradicional:_ Cadastro de usuário com **Nome, Email e Senha** (armazenamento seguro via hash forte `bcrypt` ou `argon2id`).
-  - _Login Tradicional:_ Autenticação por **Email e Senha** com emissão de token JWT Bearer (Access Token / Refresh Token).
+  - _Login Tradicional:_ Autenticação por **Email e Senha** com emissão de token JWT Bearer (validade padrão de 24 horas ou 30 dias com `rememberMe`).
   - _Login Social (OAuth 2.0 / OIDC):_ Autenticação via provedores **Google** e **LinkedIn**, com vinculação automática de conta por e-mail verificado.
   - _Isolamento de Dados:_ Isolamento estrito dos dados e recursos vinculados ao `user_id` autenticado.
 - **[RF-02] Quadro Kanban Único (Job Applications):** Visualização e gerenciamento de candidaturas através de estados fixos de fluxo: _To Apply (`TO_APPLY`), Applied (`APPLIED`), Interview (`INTERVIEW`), Offer (`OFFER`), Rejected (`REJECTED`)_. Suporte completo a criação, atualização de status/dados e exclusão/arquivamento.
@@ -191,7 +191,7 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 | ----------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------- |
 | `GET`       | `/v1/health`                                               | Verifica integridade básica e timestamp em UTC do servidor.            | Pública                    |
 | `POST`      | `/v1/users`                                                | Registro de usuário (padrão `Create` resource do Google API Design).   | Pública                    |
-| `POST`      | `/v1/users:login`                                          | Login com Email e Senha, retornando token JWT (padrão Custom Method).  | Pública                    |
+| `POST`      | `/v1/users:login`                                          | Login com Email, Senha e suporte a `rememberMe` (30 dias ou 24h).      | Pública                    |
 | `GET`       | `/v1/users:oauthUrl?provider={provider}`                   | Retorna URL de autorização OAuth 2.0 (`google` ou `linkedin`).         | Pública                    |
 | `POST`      | `/v1/users:oauthLogin`                                     | Recebe código OAuth (`provider`, `code`), autentica e retorna token.   | Pública                    |
 | `GET`       | `/v1/users/me`                                             | Retorna informações do usuário autenticado.                            | JWT                        |
@@ -250,7 +250,8 @@ O endpoint de listagem aceita os seguintes parâmetros de consulta (_query param
 ```json
 {
   "email": "otavio@hirely.app",
-  "password": "StrongPassword123!"
+  "password": "StrongPassword123!",
+  "rememberMe": true
 }
 ```
 

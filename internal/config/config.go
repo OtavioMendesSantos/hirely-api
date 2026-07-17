@@ -10,18 +10,17 @@ import (
 
 type Config struct {
 	// Server
-	Port         string        `env:"PORT" envDefault:"8080"`
-	ENV          string        `env:"ENV" envDefault:"development"`
+	Port string `env:"PORT" envDefault:"8080"`
+	ENV  string `env:"ENV" envDefault:"development"`
 
 	// Serverless
 	ReadTimeout  time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
 	WriteTimeout time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"20s"`
 	IdleTimeout  time.Duration `env:"SERVER_IDLE_TIMEOUT" envDefault:"120s"`
 
-	
 	JWTSecret    string        `env:"JWT_SECRET,required"`
-	JWTExpiresIn time.Duration `env:"JWT_EXPIRES_IN,required"`
-	
+	JWTExpiresIn time.Duration `envDefault:"24h"`
+
 	// Database
 	DB_HOST     string `env:"DB_HOST,required"`
 	DB_PORT     string `env:"DB_PORT,required"`

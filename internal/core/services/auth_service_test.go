@@ -164,7 +164,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 		t.Fatalf("failed to setup test user: %v", err)
 	}
 
-	user, token, err := service.Login(context.Background(), "otavio@hirely.app", "password123")
+	user, token, err := service.Login(context.Background(), "otavio@hirely.app", "password123", false)
 	if err != nil {
 		t.Fatalf("expected successful login, got %v", err)
 	}
@@ -173,6 +173,34 @@ func TestAuthService_Login_Success(t *testing.T) {
 	}
 	if token == "" {
 		t.Error("expected non-empty token on successful login")
+	}
+}
+
+func TestAuthService_Login_RememberMe(t *testing.T) {
+	repo := newMockUserRepositoryForAuthTest()
+	service := NewAuthService(repo, "secret", time.Hour)
+
+	_, _, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
+	if err != nil {
+		t.Fatalf("failed to setup test user: %v", err)
+	}
+
+	// Login with rememberMe = true
+	_, tokenRemember, err := service.Login(context.Background(), "otavio@hirely.app", "password123", true)
+	if err != nil {
+		t.Fatalf("expected successful login with rememberMe, got %v", err)
+	}
+
+	parsedToken, _ := jwt.Parse(tokenRemember, func(t *jwt.Token) (interface{}, error) {
+		return []byte("secret"), nil
+	})
+	claims, _ := parsedToken.Claims.(jwt.MapClaims)
+	expRemember := int64(claims["exp"].(float64))
+
+	// Should be approximately 30 days from now (30 * 24h = 720h)
+	expectedExp := time.Now().Add(30 * 24 * time.Hour).Unix()
+	if expRemember < expectedExp-60 || expRemember > expectedExp+60 {
+		t.Errorf("expected expiration around %d, got %d", expectedExp, expRemember)
 	}
 }
 
@@ -192,7 +220,7 @@ func TestAuthService_Login_InvalidInputs(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := service.Login(context.Background(), tc.email, tc.password)
+			_, _, err := service.Login(context.Background(), tc.email, tc.password, false)
 			if !errors.Is(err, domain.ErrInvalidInput) {
 				t.Errorf("expected ErrInvalidInput, got %v", err)
 			}
@@ -204,7 +232,7 @@ func TestAuthService_Login_UserNotFound(t *testing.T) {
 	repo := newMockUserRepositoryForAuthTest()
 	service := NewAuthService(repo, "secret", time.Hour)
 
-	_, _, err := service.Login(context.Background(), "nonexistent@hirely.app", "password123")
+	_, _, err := service.Login(context.Background(), "nonexistent@hirely.app", "password123", false)
 	if !errors.Is(err, domain.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -216,7 +244,7 @@ func TestAuthService_Login_WrongPassword(t *testing.T) {
 
 	_, _, _ = service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 
-	_, _, err := service.Login(context.Background(), "otavio@hirely.app", "wrongpassword")
+	_, _, err := service.Login(context.Background(), "otavio@hirely.app", "wrongpassword", false)
 	if !errors.Is(err, domain.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials for wrong password, got %v", err)
 	}
@@ -227,8 +255,9 @@ func TestAuthService_Login_RepoError(t *testing.T) {
 	service := NewAuthService(repo, "secret", time.Hour)
 
 	repo.findByEmailErr = errors.New("db error on login")
-	_, _, err := service.Login(context.Background(), "otavio@hirely.app", "password123")
+	_, _, err := service.Login(context.Background(), "otavio@hirely.app", "password123", false)
 	if err == nil || err.Error() != "db error on login" {
 		t.Errorf("expected db error on login, got %v", err)
 	}
 }
+
