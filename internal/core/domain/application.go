@@ -30,6 +30,7 @@ type Application struct {
 	Notes              string            `json:"notes"`
 	CreatedAt          time.Time         `json:"createdAt"`
 	UpdatedAt          time.Time         `json:"updatedAt"`
+	Events             []Event           `json:"events,omitempty"`
 }
 
 func NewApplication(id, userID, companyName, jobTitle string, status ApplicationStatus) *Application {

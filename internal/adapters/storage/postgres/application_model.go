@@ -20,6 +20,7 @@ type ApplicationModel struct {
 	Notes              string                   `gorm:"type:text"`
 	CreatedAt          time.Time                `gorm:"type:timestamp;not null"`
 	UpdatedAt          time.Time                `gorm:"type:timestamp;not null"`
+	Events             []EventModel             `gorm:"foreignKey:ApplicationID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 func (ApplicationModel) TableName() string {
@@ -27,6 +28,14 @@ func (ApplicationModel) TableName() string {
 }
 
 func (m *ApplicationModel) ToDomain() *domain.Application {
+	var events []domain.Event
+	if len(m.Events) > 0 {
+		events = make([]domain.Event, len(m.Events))
+		for i, e := range m.Events {
+			events[i] = *e.ToDomain()
+		}
+	}
+
 	return &domain.Application{
 		ID:                 m.ID,
 		UserID:             m.UserID,
@@ -41,10 +50,19 @@ func (m *ApplicationModel) ToDomain() *domain.Application {
 		Notes:              m.Notes,
 		CreatedAt:          m.CreatedAt,
 		UpdatedAt:          m.UpdatedAt,
+		Events:             events,
 	}
 }
 
 func ApplicationFromDomain(a *domain.Application) *ApplicationModel {
+	var events []EventModel
+	if len(a.Events) > 0 {
+		events = make([]EventModel, len(a.Events))
+		for i, e := range a.Events {
+			events[i] = *EventFromDomain(&e)
+		}
+	}
+
 	return &ApplicationModel{
 		ID:                 a.ID,
 		UserID:             a.UserID,
@@ -59,5 +77,6 @@ func ApplicationFromDomain(a *domain.Application) *ApplicationModel {
 		Notes:              a.Notes,
 		CreatedAt:          a.CreatedAt,
 		UpdatedAt:          a.UpdatedAt,
+		Events:             events,
 	}
 }

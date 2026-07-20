@@ -42,7 +42,7 @@ func NewConnection(cfg DBConfig) (*gorm.DB, error) {
 
 	slog.Info("Executing database migrations", slog.String("operation", "DatabaseMigration"))
 
-	err = db.AutoMigrate(&UserModel{}, &ApplicationModel{})
+	err = db.AutoMigrate(&UserModel{}, &ApplicationModel{}, &EventModel{})
 	if err != nil {
 		return nil, fmt.Errorf("database migration failed: %w", err)
 	}

@@ -7,4 +7,7 @@ var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrInvalidInput       = errors.New("invalid input parameters")
 	ErrUserNotFound       = errors.New("user not found")
+	ErrApplicationNotFound     = errors.New("application not found")
+	ErrForbidden               = errors.New("permission denied")
+	ErrInvalidStatusTransition = errors.New("invalid status transition")
 )

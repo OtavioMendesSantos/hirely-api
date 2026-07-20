@@ -35,14 +35,23 @@ func main() {
 
 	db := initDB(cfg)
 
+	// Repositories
 	userRepo := postgres.NewUserRepository(db)
+	appRepo := postgres.NewApplicationRepository(db)
+	eventRepo := postgres.NewEventRepository(db)
+
+	// Services
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpiresIn)
 	userService := services.NewUserService(userRepo)
+	appService := services.NewApplicationService(appRepo, eventRepo)
+
+	// Handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
+	appHandler := handlers.NewApplicationHandler(appService)
 	healthHandler := handlers.NewHealthHandler()
 
-	mux := adapterHttp.SetupRoutes(authHandler, userHandler, healthHandler, cfg.JWTSecret)
+	mux := adapterHttp.SetupRoutes(authHandler, userHandler, appHandler, healthHandler, cfg.JWTSecret)
 
 	startHTTPServer(cfg, mux)
 }

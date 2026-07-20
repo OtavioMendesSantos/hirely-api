@@ -113,7 +113,12 @@ Para garantir a independência do banco de dados, a camada de domínio trata `Ap
 | - JobURL: string (opcional)                                 |
 | - SalaryRange: string (opcional)                            |
 | - Status: ApplicationStatus (TO_APPLY, APPLIED, INTERVIEW,  |
-|                              OFFER, REJECTED)               |
+|                              OFFER, ACCEPTED, REJECTED)     |
+| - AppliedAt: time.Time (opcional)                           |
+| - Location: string (opcional)                               |
+| - SubmittedDocuments: []string (opcional)                   |
+| - JobDescription: string (opcional)                         |
+| - Notes: string (opcional)                                  |
 | - Tags: []Tag                                               |
 | - Timeline: []Event                                         |
 | - CreatedAt: time.Time                                      |
@@ -154,19 +159,24 @@ No banco relacional PostgreSQL, as tabelas são normalizadas com chaves estrange
           | 1
           |
           | N
-+----------------------+       +--------------------------+       +----------------------+
-|     applications     | 1   N |          events          |       |         tags         |
-+----------------------+-------+--------------------------+       +----------------------+
-| id (PK, UUID)        |       | id (PK, UUID)            |       | id (PK, UUID)        |
-| user_id (FK, Index)  |       | application_id (FK, UUID)|       | user_id (FK, Index)  |
-| job_title (VARCHAR)  |       | type (VARCHAR)           |       | name (VARCHAR)       |
-| company_name(VARCHAR)|       | description (TEXT)       |       | color_hex (VARCHAR)  |
-| job_url (TEXT)       |       | previous_status(VARCHAR) |       | created_at (TIMESTAMP|
-| salary_range(VARCHAR)|       | new_status (VARCHAR)     |       +----------------------+
-| status (VARCHAR)     |       | created_at (TIMESTAMP)   |                  ^
-| created_at(TIMESTAMP)|       +--------------------------+                  |
-| updated_at(TIMESTAMP)|                                                     |
-+----------------------+                                                     |
++---------------------------+       +--------------------------+       +----------------------+
+|       applications        | 1   N |          events          |       |         tags         |
++---------------------------+-------+--------------------------+       +----------------------+
+| id (PK, UUID)             |       | id (PK, UUID)            |       | id (PK, UUID)        |
+| user_id (FK, Index)       |       | application_id (FK, UUID)|       | user_id (FK, Index)  |
+| job_title (VARCHAR)       |       | type (VARCHAR)           |       | name (VARCHAR)       |
+| company_name(VARCHAR)     |       | description (TEXT)       |       | color_hex (VARCHAR)  |
+| job_url (TEXT)            |       | previous_status(VARCHAR) |       | created_at (TIMESTAMP|
+| salary_range(VARCHAR)     |       | new_status (VARCHAR)     |       +----------------------+
+| status (VARCHAR)          |       | created_at (TIMESTAMP)   |                  ^
+| applied_at (TIMESTAMP)    |       +--------------------------+                  |
+| location (VARCHAR)        |                                                     |
+| submitted_documents(JSONB)|                                                     |
+| job_description (TEXT)    |                                                     |
+| notes (TEXT)              |                                                     |
+| created_at(TIMESTAMP)     |                                                     |
+| updated_at(TIMESTAMP)     |                                                     |
++---------------------------+                                                     |
           ^                                                                  |
           | 1                                                                | 1
           +-------------------+                          +-------------------+
@@ -304,38 +314,169 @@ O endpoint de listagem aceita os seguintes parâmetros de consulta (_query param
 }
 ```
 
-#### Resposta da Listagem de Candidaturas (`ListApplicationsResponse`)
+#### Requisição de Criação de Candidatura (`CreateApplicationRequest` - `POST /v1/users/{user_id}/applications`)
+
+```json
+{
+  "company_name": "Hirely Corp",
+  "job_title": "Senior Backend Engineer",
+  "job_url": "https://linkedin.com/jobs/view/12345",
+  "status": "APPLIED",
+  "location": "Remoto (São Paulo/SP)",
+  "submitted_documents": [
+    "Currículo v2.pdf",
+    "Carta de Apresentação.pdf"
+  ],
+  "job_description": "Desenvolvimento e arquitetura de microsserviços em Go...",
+  "notes": "Indicação direta via LinkedIn pelo Tech Lead.",
+  "applied_at": "2026-07-20T14:00:00Z"
+}
+```
+
+#### Resposta de Criação e Detalhes da Candidatura (`Application` - `POST /v1/users/{user_id}/applications` e `GET /v1/users/{user_id}/applications/{application_id}`)
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+  "companyName": "Hirely Corp",
+  "jobTitle": "Senior Backend Engineer",
+  "jobUrl": "https://linkedin.com/jobs/view/12345",
+  "status": "APPLIED",
+  "appliedAt": "2026-07-20T14:00:00Z",
+  "location": "Remoto (São Paulo/SP)",
+  "submittedDocuments": [
+    "Currículo v2.pdf",
+    "Carta de Apresentação.pdf"
+  ],
+  "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
+  "notes": "Indicação direta via LinkedIn pelo Tech Lead.",
+  "createdAt": "2026-07-20T14:10:00Z",
+  "updatedAt": "2026-07-20T14:10:00Z",
+  "events": [
+    {
+      "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+      "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "type": "AUTOMATIC",
+      "description": "Candidatura criada com status APPLIED",
+      "newStatus": "APPLIED",
+      "createdAt": "2026-07-20T14:10:00Z"
+    }
+  ]
+}
+```
+
+#### Resposta da Listagem de Candidaturas (`ListApplicationsResponse` - `GET /v1/users/{user_id}/applications`)
 
 ```json
 {
   "applications": [
     {
-      "name": "users/user-123/applications/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
       "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-      "job_title": "Senior Backend Engineer",
-      "company_name": "Hirely Corp",
-      "job_url": "https://linkedin.com/jobs/view/12345",
-      "salary_range": "$120k - $140k",
+      "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+      "companyName": "Hirely Corp",
+      "jobTitle": "Senior Backend Engineer",
+      "jobUrl": "https://linkedin.com/jobs/view/12345",
       "status": "APPLIED",
-      "tags": [
-        {
-          "id": "11111111-2222-3333-4444-555555555555",
-          "name": "Go",
-          "color_hex": "#00ADD8"
-        },
-        {
-          "id": "66666666-7777-8888-9999-000000000000",
-          "name": "Remote",
-          "color_hex": "#10B981"
-        }
+      "appliedAt": "2026-07-20T14:00:00Z",
+      "location": "Remoto (São Paulo/SP)",
+      "submittedDocuments": [
+        "Currículo v2.pdf"
       ],
-      "created_at": "2026-07-09T14:00:00Z",
-      "updated_at": "2026-07-09T16:30:00Z"
+      "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
+      "notes": "Indicação direta via LinkedIn.",
+      "createdAt": "2026-07-20T14:10:00Z",
+      "updatedAt": "2026-07-20T14:10:00Z",
+      "events": [
+        {
+          "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+          "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+          "type": "AUTOMATIC",
+          "description": "Candidatura criada com status APPLIED",
+          "newStatus": "APPLIED",
+          "createdAt": "2026-07-20T14:10:00Z"
+        }
+      ]
     }
   ],
   "next_page_token": ""
 }
 ```
+
+#### Requisição de Atualização de Candidatura (`UpdateApplicationRequest` - `PATCH /v1/users/{user_id}/applications/{application_id}`)
+
+```json
+{
+  "status": "INTERVIEW",
+  "notes": "Primeira entrevista técnica agendada para sexta-feira."
+}
+```
+
+#### Resposta de Atualização de Candidatura (`Application` - `PATCH /v1/users/{user_id}/applications/{application_id}`)
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+  "companyName": "Hirely Corp",
+  "jobTitle": "Senior Backend Engineer",
+  "jobUrl": "https://linkedin.com/jobs/view/12345",
+  "status": "INTERVIEW",
+  "appliedAt": "2026-07-20T14:00:00Z",
+  "location": "Remoto (São Paulo/SP)",
+  "submittedDocuments": [
+    "Currículo v2.pdf",
+    "Carta de Apresentação.pdf"
+  ],
+  "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
+  "notes": "Primeira entrevista técnica agendada para sexta-feira.",
+  "createdAt": "2026-07-20T14:10:00Z",
+  "updatedAt": "2026-07-20T16:45:00Z",
+  "events": [
+    {
+      "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+      "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "type": "AUTOMATIC",
+      "description": "Candidatura criada com status APPLIED",
+      "newStatus": "APPLIED",
+      "createdAt": "2026-07-20T14:10:00Z"
+    },
+    {
+      "id": "f8e7d6c5-4b3a-2f1e-0d9c-8b7a6f5e4d3c",
+      "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "type": "AUTOMATIC",
+      "description": "Status alterado de APPLIED para INTERVIEW",
+      "previousStatus": "APPLIED",
+      "newStatus": "INTERVIEW",
+      "createdAt": "2026-07-20T16:45:00Z"
+    }
+  ]
+}
+```
+
+#### Requisição de Adição de Evento Manual na Timeline (`CreateManualEventRequest` - `POST /v1/users/{user_id}/applications/{application_id}/events`)
+
+```json
+{
+  "description": "Encontrei o Tech Lead no LinkedIn e enviei uma mensagem de apresentação."
+}
+```
+
+#### Resposta de Adição de Evento Manual na Timeline (`Event` - `POST /v1/users/{user_id}/applications/{application_id}/events`)
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+  "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "type": "MANUAL",
+  "description": "Encontrei o Tech Lead no LinkedIn e enviei uma mensagem de apresentação.",
+  "createdAt": "2026-07-20T17:00:00Z"
+}
+```
+
+#### Resposta de Exclusão de Candidatura (`DELETE /v1/users/{user_id}/applications/{application_id}`)
+
+*(Sem corpo de resposta - Código de status HTTP `204 No Content`)*
 
 #### Resposta de Métricas / Funil (`ApplicationStatsResponse`)
 
