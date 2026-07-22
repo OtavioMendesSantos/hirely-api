@@ -207,6 +207,7 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 | `GET`       | `/v1/users/me`                                             | Retorna informações do usuário autenticado.                            | JWT                        |
 | `POST`      | `/v1/users/{user_id}/applications`                         | Cria uma nova candidatura para o usuário.                              | JWT (`user_id` compatível) |
 | `GET`       | `/v1/users/{user_id}/applications`                         | Lista candidaturas com suporte a filtros e paginação.                  | JWT                        |
+| `GET`       | `/v1/users/{user_id}/applications/grouped-by-status`       | Retorna as candidaturas agrupadas por status (ideal para Kanban).      | JWT                        |
 | `GET`       | `/v1/users/{user_id}/applications/{application_id}`        | Retorna detalhes de uma candidatura (incluindo tags e timeline).       | JWT                        |
 | `PATCH`     | `/v1/users/{user_id}/applications/{application_id}`        | Atualiza status ou dados da candidatura (`job_title`, `status`, etc.). | JWT                        |
 | `DELETE`    | `/v1/users/{user_id}/applications/{application_id}`        | Remove ou arquiva uma candidatura.                                     | JWT                        |
@@ -218,14 +219,20 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 
 ---
 
-### 4.2 Parâmetros de Busca e Filtragem (`GET /v1/users/{user_id}/applications`)
+### 4.2 Parâmetros de Busca, Filtragem e Ordenação (`GET /v1/users/{user_id}/applications` e `GET /v1/users/{user_id}/applications/grouped-by-status`)
 
-O endpoint de listagem aceita os seguintes parâmetros de consulta (_query parameters_):
+Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query parameters_):
 
 - `status`: Filtra por status (ex: `?status=APPLIED` ou múltiplos: `?status=INTERVIEW,OFFER`).
-- `tag_ids`: Filtra por tags (ex: `?tag_ids=uuid-tag-1,uuid-tag-2`).
-- `page_size`: Quantidade de itens por página (padrão: `20`, máximo: `100`).
-- `page_token`: Token para paginação (`next_page_token` retornado pela chamada anterior).
+- `tag_ids`: Filtra por tags (ex: `?tag_ids=uuid-tag-1,uuid-tag-2` — *aplicável à listagem paginada*).
+- `order_by`: Campo utilizado para ordenação das candidaturas. Opções suportadas:
+  - `created_at`: Data de criação da candidatura (padrão: `desc`).
+  - `job_title`: Título da vaga (padrão: `asc`).
+  - `updated_at`: Data da última atualização da candidatura (padrão: `desc`).
+  - `applied_at`: Data de candidatura/aplicação na vaga (padrão: `desc`).
+- `order`: Direção da ordenação (`asc` ou `desc`). Também é possível passar a direção no próprio `order_by` (ex: `?order_by=job_title desc`).
+- `page_size`: Quantidade de itens por página (padrão: `20`, máximo: `100` — *aplicável à listagem paginada*).
+- `page_token`: Token para paginação (`next_page_token` retornado pela chamada anterior — *aplicável à listagem paginada*).
 
 ---
 
@@ -400,6 +407,39 @@ O endpoint de listagem aceita os seguintes parâmetros de consulta (_query param
     }
   ],
   "next_page_token": ""
+}
+```
+
+#### Resposta da Listagem Agrupada por Status (`GroupedApplicationsResponse` - `GET /v1/users/{user_id}/applications/grouped-by-status`)
+
+```json
+{
+  "grouped_applications": {
+    "TO_APPLY": [
+      {
+        "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+        "companyName": "Hirely Corp",
+        "jobTitle": "Senior Backend Engineer",
+        "jobUrl": "https://linkedin.com/jobs/view/12345",
+        "status": "TO_APPLY",
+        "appliedAt": null,
+        "location": "Remoto (São Paulo/SP)",
+        "submittedDocuments": [],
+        "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
+        "notes": "",
+        "createdAt": "2026-07-20T14:10:00Z",
+        "updatedAt": "2026-07-20T14:10:00Z",
+        "events": []
+      }
+    ],
+    "APPLIED": [],
+    "INTERVIEW": [],
+    "OFFER": [],
+    "ACCEPTED": [],
+    "REJECTED": [],
+    "OTHER": []
+  }
 }
 ```
 

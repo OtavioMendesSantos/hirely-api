@@ -37,3 +37,7 @@ type ListApplicationsResponse struct {
 	Applications  []*domain.Application `json:"applications"`
 	NextPageToken string                `json:"next_page_token"`
 }
+
+type GroupedApplicationsResponse struct {
+	GroupedApplications map[domain.ApplicationStatus][]*domain.Application `json:"grouped_applications"`
+}

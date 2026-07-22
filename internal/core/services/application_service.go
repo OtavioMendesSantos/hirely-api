@@ -122,9 +122,61 @@ func (s *ApplicationService) GetApplicationByID(ctx context.Context, userID stri
 	return app, nil
 }
 
-func (s *ApplicationService) ListApplications(ctx context.Context, userID string, statusFilters []string) ([]*domain.Application, error) {
+func normalizeOrderOptions(orderBy, orderDir string) (string, string, bool) {
+	orderBy = strings.ToLower(strings.TrimSpace(orderBy))
+	orderDir = strings.ToLower(strings.TrimSpace(orderDir))
+
+	if strings.Contains(orderBy, " ") {
+		parts := strings.Fields(orderBy)
+		if len(parts) >= 2 {
+			orderBy = parts[0]
+			if orderDir == "" {
+				orderDir = parts[1]
+			}
+		}
+	}
+
+	switch orderBy {
+	case "", "created_at", "createdat", "create_time":
+		orderBy = "created_at"
+	case "job_title", "jobtitle", "title":
+		orderBy = "job_title"
+	case "updated_at", "updatedat", "update_time":
+		orderBy = "updated_at"
+	case "applied_at", "appliedat", "apply_time":
+		orderBy = "applied_at"
+	default:
+		return "", "", false
+	}
+
+	switch orderDir {
+	case "", "asc", "ascending":
+		if orderDir == "" {
+			if orderBy == "job_title" {
+				orderDir = "asc"
+			} else {
+				orderDir = "desc"
+			}
+		} else {
+			orderDir = "asc"
+		}
+	case "desc", "descending":
+		orderDir = "desc"
+	default:
+		return "", "", false
+	}
+
+	return orderBy, orderDir, true
+}
+
+func (s *ApplicationService) ListApplications(ctx context.Context, userID string, statusFilters []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
+		return nil, domain.ErrInvalidInput
+	}
+
+	normOrderBy, normOrderDir, ok := normalizeOrderOptions(orderBy, orderDir)
+	if !ok {
 		return nil, domain.ErrInvalidInput
 	}
 
@@ -137,9 +189,45 @@ func (s *ApplicationService) ListApplications(ctx context.Context, userID string
 	}
 
 	if len(validFilters) > 0 {
-		return s.appRepo.ListByUserIDWithFilters(ctx, userID, validFilters)
+		return s.appRepo.ListByUserIDWithFilters(ctx, userID, validFilters, normOrderBy, normOrderDir)
 	}
-	return s.appRepo.ListByUserID(ctx, userID)
+	return s.appRepo.ListByUserID(ctx, userID, normOrderBy, normOrderDir)
+}
+
+func (s *ApplicationService) ListApplicationsGroupedByStatus(ctx context.Context, userID string, statusFilters []string, orderBy string, orderDir string) (map[domain.ApplicationStatus][]*domain.Application, error) {
+	apps, err := s.ListApplications(ctx, userID, statusFilters, orderBy, orderDir)
+	if err != nil {
+		return nil, err
+	}
+
+	grouped := make(map[domain.ApplicationStatus][]*domain.Application)
+
+	var statusesToInit []domain.ApplicationStatus
+	if len(statusFilters) > 0 {
+		for _, st := range statusFilters {
+			stTrim := strings.TrimSpace(st)
+			if stTrim != "" && isValidStatus(domain.ApplicationStatus(stTrim)) {
+				statusesToInit = append(statusesToInit, domain.ApplicationStatus(stTrim))
+			}
+		}
+	}
+	if len(statusesToInit) == 0 {
+		statusesToInit = domain.AllStatuses()
+	}
+
+	for _, st := range statusesToInit {
+		grouped[st] = make([]*domain.Application, 0)
+	}
+
+	for _, app := range apps {
+		if _, ok := grouped[app.Status]; ok {
+			grouped[app.Status] = append(grouped[app.Status], app)
+		} else {
+			grouped[app.Status] = []*domain.Application{app}
+		}
+	}
+
+	return grouped, nil
 }
 
 func (s *ApplicationService) UpdateApplication(ctx context.Context, userID string, appID string, input UpdateApplicationInput) (*domain.Application, error) {

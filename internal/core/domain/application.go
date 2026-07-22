@@ -46,3 +46,15 @@ func NewApplication(id, userID, companyName, jobTitle string, status Application
 		UpdatedAt:          now,
 	}
 }
+
+func AllStatuses() []ApplicationStatus {
+	return []ApplicationStatus{
+		StatusToApply,
+		StatusApplied,
+		StatusInterview,
+		StatusOffer,
+		StatusAccepted,
+		StatusRejected,
+		StatusOther,
+	}
+}

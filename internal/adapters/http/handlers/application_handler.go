@@ -115,7 +115,10 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	apps, err := h.appService.ListApplications(r.Context(), userID, statuses)
+	orderBy := r.URL.Query().Get("order_by")
+	orderDir := r.URL.Query().Get("order")
+
+	apps, err := h.appService.ListApplications(r.Context(), userID, statuses, orderBy, orderDir)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
 			dto.WriteError(w, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
@@ -133,6 +136,50 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 	resp := dto.ListApplicationsResponse{
 		Applications:  apps,
 		NextPageToken: "",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *ApplicationHandler) GroupedByStatus(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.checkIsolation(w, r)
+	if !ok {
+		return
+	}
+
+	var statuses []string
+	statusQuery := r.URL.Query().Get("status")
+	if statusQuery != "" {
+		for _, s := range strings.Split(statusQuery, ",") {
+			st := strings.TrimSpace(s)
+			if st != "" {
+				statuses = append(statuses, st)
+			}
+		}
+	}
+
+	orderBy := r.URL.Query().Get("order_by")
+	orderDir := r.URL.Query().Get("order")
+
+	grouped, err := h.appService.ListApplicationsGroupedByStatus(r.Context(), userID, statuses, orderBy, orderDir)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidInput) {
+			dto.WriteError(w, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
+			return
+		}
+		slog.Error("Failed to list applications grouped by status",
+			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("operation", "GroupedByStatus"),
+			slog.String("error", err.Error()),
+		)
+		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		return
+	}
+
+	resp := dto.GroupedApplicationsResponse{
+		GroupedApplications: grouped,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

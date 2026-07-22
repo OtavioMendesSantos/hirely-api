@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/ports"
 
@@ -15,6 +16,27 @@ type ApplicationRepository struct {
 
 func NewApplicationRepository(db *gorm.DB) *ApplicationRepository {
 	return &ApplicationRepository{db: db}
+}
+
+func getOrderClause(orderBy string, orderDir string) string {
+	if orderBy == "" {
+		orderBy = "created_at"
+	}
+	if orderDir == "" {
+		orderDir = "desc"
+	}
+	clause := fmt.Sprintf("%s %s", orderBy, orderDir)
+	if orderBy == "applied_at" {
+		if orderDir == "desc" {
+			clause += " nulls last"
+		} else {
+			clause += " nulls first"
+		}
+	}
+	if orderBy != "created_at" {
+		clause += ", created_at desc"
+	}
+	return clause
 }
 
 func (r *ApplicationRepository) Create(ctx context.Context, app *domain.Application) error {
@@ -42,14 +64,14 @@ func (r *ApplicationRepository) FindByID(ctx context.Context, id string) (*domai
 	return model.ToDomain(), nil
 }
 
-func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string) ([]*domain.Application, error) {
+func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var models []ApplicationModel
 	result := r.db.WithContext(ctx).
 		Preload("Events", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at asc")
 		}).
 		Where("user_id = ?", userID).
-		Order("created_at desc").
+		Order(getOrderClause(orderBy, orderDir)).
 		Find(&models)
 
 	if result.Error != nil {
@@ -64,7 +86,7 @@ func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string)
 	return apps, nil
 }
 
-func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string) ([]*domain.Application, error) {
+func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var models []ApplicationModel
 	query := r.db.WithContext(ctx).
 		Preload("Events", func(db *gorm.DB) *gorm.DB {
@@ -76,7 +98,7 @@ func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, use
 		query = query.Where("status IN ?", statuses)
 	}
 
-	result := query.Order("created_at desc").Find(&models)
+	result := query.Order(getOrderClause(orderBy, orderDir)).Find(&models)
 	if result.Error != nil {
 		return nil, result.Error
 	}

@@ -35,7 +35,7 @@ func (m *mockAppRepoForHandlerTest) FindByID(ctx context.Context, id string) (*d
 	return app, nil
 }
 
-func (m *mockAppRepoForHandlerTest) ListByUserID(ctx context.Context, userID string) ([]*domain.Application, error) {
+func (m *mockAppRepoForHandlerTest) ListByUserID(ctx context.Context, userID string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var list []*domain.Application
 	for _, app := range m.apps {
 		if app.UserID == userID {
@@ -45,7 +45,7 @@ func (m *mockAppRepoForHandlerTest) ListByUserID(ctx context.Context, userID str
 	return list, nil
 }
 
-func (m *mockAppRepoForHandlerTest) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string) ([]*domain.Application, error) {
+func (m *mockAppRepoForHandlerTest) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	statusMap := make(map[string]bool)
 	for _, st := range statuses {
 		statusMap[st] = true
@@ -241,5 +241,88 @@ func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 
 	if deleteRec.Code != http.StatusNoContent {
 		t.Fatalf("expected status 204 on delete, got %d: %s", deleteRec.Code, deleteRec.Body.String())
+	}
+}
+
+func TestApplicationHandler_GroupedByStatus_Success(t *testing.T) {
+	appRepo := newMockAppRepoForHandlerTest()
+	eventRepo := newMockEventRepoForHandlerTest()
+	appService := services.NewApplicationService(appRepo, eventRepo)
+	handler := NewApplicationHandler(appService)
+
+	ctx := context.Background()
+	appService.CreateApplication(ctx, "user-123", services.CreateApplicationInput{
+		CompanyName: "Netflix",
+		JobTitle:    "DevOps",
+		Status:      domain.StatusToApply,
+	})
+	appService.CreateApplication(ctx, "user-123", services.CreateApplicationInput{
+		CompanyName: "Spotify",
+		JobTitle:    "SRE",
+		Status:      domain.StatusApplied,
+	})
+
+	req := httptest.NewRequest("GET", "/v1/users/user-123/applications/grouped-by-status", nil)
+	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
+	req.SetPathValue("user_id", "user-123")
+
+	rec := httptest.NewRecorder()
+	handler.GroupedByStatus(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp dto.GroupedApplicationsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal grouped response: %v", err)
+	}
+
+	if len(resp.GroupedApplications) != 7 {
+		t.Errorf("expected 7 status entries, got %d", len(resp.GroupedApplications))
+	}
+	if len(resp.GroupedApplications[domain.StatusToApply]) != 1 {
+		t.Errorf("expected 1 TO_APPLY app, got %d", len(resp.GroupedApplications[domain.StatusToApply]))
+	}
+	if len(resp.GroupedApplications[domain.StatusApplied]) != 1 {
+		t.Errorf("expected 1 APPLIED app, got %d", len(resp.GroupedApplications[domain.StatusApplied]))
+	}
+}
+
+func TestApplicationHandler_Ordering_Success(t *testing.T) {
+	appRepo := newMockAppRepoForHandlerTest()
+	eventRepo := newMockEventRepoForHandlerTest()
+	appService := services.NewApplicationService(appRepo, eventRepo)
+	handler := NewApplicationHandler(appService)
+
+	ctx := context.Background()
+	appService.CreateApplication(ctx, "user-123", services.CreateApplicationInput{
+		CompanyName: "Netflix",
+		JobTitle:    "Backend",
+		Status:      domain.StatusApplied,
+	})
+
+	// Test List with order_by
+	req := httptest.NewRequest("GET", "/v1/users/user-123/applications?order_by=job_title&order=asc", nil)
+	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
+	req.SetPathValue("user_id", "user-123")
+
+	rec := httptest.NewRecorder()
+	handler.List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Test GroupedByStatus with order_by
+	reqGrouped := httptest.NewRequest("GET", "/v1/users/user-123/applications/grouped-by-status?order_by=applied_at&order=desc", nil)
+	reqGrouped = reqGrouped.WithContext(middleware.WithUserID(reqGrouped.Context(), "user-123"))
+	reqGrouped.SetPathValue("user_id", "user-123")
+
+	recGrouped := httptest.NewRecorder()
+	handler.GroupedByStatus(recGrouped, reqGrouped)
+
+	if recGrouped.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recGrouped.Code, recGrouped.Body.String())
 	}
 }

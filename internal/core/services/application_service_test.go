@@ -29,7 +29,7 @@ func (m *mockAppRepo) FindByID(ctx context.Context, id string) (*domain.Applicat
 	return app, nil
 }
 
-func (m *mockAppRepo) ListByUserID(ctx context.Context, userID string) ([]*domain.Application, error) {
+func (m *mockAppRepo) ListByUserID(ctx context.Context, userID string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var list []*domain.Application
 	for _, app := range m.apps {
 		if app.UserID == userID {
@@ -39,7 +39,7 @@ func (m *mockAppRepo) ListByUserID(ctx context.Context, userID string) ([]*domai
 	return list, nil
 }
 
-func (m *mockAppRepo) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string) ([]*domain.Application, error) {
+func (m *mockAppRepo) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	statusMap := make(map[string]bool)
 	for _, st := range statuses {
 		statusMap[st] = true
@@ -182,5 +182,64 @@ func TestApplicationService_DeleteAndManualEvent(t *testing.T) {
 	err = service.DeleteApplication(ctx, "user-1", app.ID)
 	if err != nil {
 		t.Errorf("expected no error on valid delete, got %v", err)
+	}
+}
+
+func TestApplicationService_ListApplicationsGroupedByStatus(t *testing.T) {
+	appRepo := newMockAppRepo()
+	eventRepo := newMockEventRepo()
+	service := NewApplicationService(appRepo, eventRepo)
+
+	ctx := context.Background()
+	service.CreateApplication(ctx, "user-1", CreateApplicationInput{
+		CompanyName: "Google",
+		JobTitle:    "Dev",
+		Status:      domain.StatusToApply,
+	})
+	service.CreateApplication(ctx, "user-1", CreateApplicationInput{
+		CompanyName: "Meta",
+		JobTitle:    "Dev",
+		Status:      domain.StatusToApply,
+	})
+	service.CreateApplication(ctx, "user-1", CreateApplicationInput{
+		CompanyName: "Apple",
+		JobTitle:    "Dev",
+		Status:      domain.StatusInterview,
+	})
+
+	grouped, err := service.ListApplicationsGroupedByStatus(ctx, "user-1", nil, "", "")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(grouped) != 7 {
+		t.Errorf("expected 7 status groups, got %d", len(grouped))
+	}
+	if len(grouped[domain.StatusToApply]) != 2 {
+		t.Errorf("expected 2 TO_APPLY applications, got %d", len(grouped[domain.StatusToApply]))
+	}
+	if len(grouped[domain.StatusInterview]) != 1 {
+		t.Errorf("expected 1 INTERVIEW application, got %d", len(grouped[domain.StatusInterview]))
+	}
+	if len(grouped[domain.StatusApplied]) != 0 {
+		t.Errorf("expected 0 APPLIED applications, got %d", len(grouped[domain.StatusApplied]))
+	}
+
+	// With status filter
+	filteredGrouped, err := service.ListApplicationsGroupedByStatus(ctx, "user-1", []string{"INTERVIEW"}, "job_title", "asc")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(filteredGrouped) != 1 {
+		t.Errorf("expected 1 status group when filtered, got %d", len(filteredGrouped))
+	}
+	if len(filteredGrouped[domain.StatusInterview]) != 1 {
+		t.Errorf("expected 1 INTERVIEW application in filter, got %d", len(filteredGrouped[domain.StatusInterview]))
+	}
+
+	// Test invalid sort option returns error
+	_, err = service.ListApplications(ctx, "user-1", nil, "invalid_column", "asc")
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Errorf("expected ErrInvalidInput when ordering by invalid column, got %v", err)
 	}
 }

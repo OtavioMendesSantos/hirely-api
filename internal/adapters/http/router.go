@@ -17,6 +17,7 @@ func SetupRoutes(authHandler *handlers.AuthHandler, userHandler *handlers.UserHa
 	mux.Handle("GET /v1/users/me", authGuard(http.HandlerFunc(userHandler.GetMe)))
 	mux.Handle("POST /v1/users/{user_id}/applications", authGuard(http.HandlerFunc(appHandler.Create)))
 	mux.Handle("GET /v1/users/{user_id}/applications", authGuard(http.HandlerFunc(appHandler.List)))
+	mux.Handle("GET /v1/users/{user_id}/applications/grouped-by-status", authGuard(http.HandlerFunc(appHandler.GroupedByStatus)))
 	mux.Handle("GET /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.GetByID)))
 	mux.Handle("PATCH /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.Update)))
 	mux.Handle("DELETE /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.Delete)))
