@@ -87,7 +87,7 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, userID strin
 	event := domain.NewAutomaticEvent(
 		uuid.NewString(),
 		app.ID,
-		fmt.Sprintf("Candidatura criada com status %s", app.Status),
+		fmt.Sprintf("Application created with status %s", app.Status),
 		"",
 		string(app.Status),
 	)
@@ -280,7 +280,7 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, userID strin
 		event := domain.NewAutomaticEvent(
 			uuid.NewString(),
 			app.ID,
-			fmt.Sprintf("Status alterado de %s para %s", oldStatus, app.Status),
+			fmt.Sprintf("Status changed from %s to %s", oldStatus, app.Status),
 			string(oldStatus),
 			string(app.Status),
 		)

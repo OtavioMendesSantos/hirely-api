@@ -329,13 +329,13 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "job_title": "Senior Backend Engineer",
   "job_url": "https://linkedin.com/jobs/view/12345",
   "status": "APPLIED",
-  "location": "Remoto (São Paulo/SP)",
+  "location": "Remote (São Paulo/SP)",
   "submitted_documents": [
-    "Currículo v2.pdf",
-    "Carta de Apresentação.pdf"
+    "Resume v2.pdf",
+    "Cover Letter.pdf"
   ],
-  "job_description": "Desenvolvimento e arquitetura de microsserviços em Go...",
-  "notes": "Indicação direta via LinkedIn pelo Tech Lead.",
+  "job_description": "Development and architecture of microservices in Go...",
+  "notes": "Direct referral via LinkedIn by Tech Lead.",
   "applied_at": "2026-07-20T14:00:00Z"
 }
 ```
@@ -351,13 +351,13 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "jobUrl": "https://linkedin.com/jobs/view/12345",
   "status": "APPLIED",
   "appliedAt": "2026-07-20T14:00:00Z",
-  "location": "Remoto (São Paulo/SP)",
+  "location": "Remote (São Paulo/SP)",
   "submittedDocuments": [
-    "Currículo v2.pdf",
-    "Carta de Apresentação.pdf"
+    "Resume v2.pdf",
+    "Cover Letter.pdf"
   ],
-  "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
-  "notes": "Indicação direta via LinkedIn pelo Tech Lead.",
+  "jobDescription": "Development and architecture of microservices in Go...",
+  "notes": "Direct referral via LinkedIn by Tech Lead.",
   "createdAt": "2026-07-20T14:10:00Z",
   "updatedAt": "2026-07-20T14:10:00Z",
   "events": [
@@ -365,7 +365,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
       "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
       "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
       "type": "AUTOMATIC",
-      "description": "Candidatura criada com status APPLIED",
+      "description": "Application created with status APPLIED",
       "newStatus": "APPLIED",
       "createdAt": "2026-07-20T14:10:00Z"
     }
@@ -386,12 +386,12 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
       "jobUrl": "https://linkedin.com/jobs/view/12345",
       "status": "APPLIED",
       "appliedAt": "2026-07-20T14:00:00Z",
-      "location": "Remoto (São Paulo/SP)",
+      "location": "Remote (São Paulo/SP)",
       "submittedDocuments": [
-        "Currículo v2.pdf"
+        "Resume v2.pdf"
       ],
-      "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
-      "notes": "Indicação direta via LinkedIn.",
+      "jobDescription": "Development and architecture of microservices in Go...",
+      "notes": "Direct referral via LinkedIn.",
       "createdAt": "2026-07-20T14:10:00Z",
       "updatedAt": "2026-07-20T14:10:00Z",
       "events": [
@@ -399,7 +399,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
           "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
           "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
           "type": "AUTOMATIC",
-          "description": "Candidatura criada com status APPLIED",
+          "description": "Application created with status APPLIED",
           "newStatus": "APPLIED",
           "createdAt": "2026-07-20T14:10:00Z"
         }
@@ -424,9 +424,9 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
         "jobUrl": "https://linkedin.com/jobs/view/12345",
         "status": "TO_APPLY",
         "appliedAt": null,
-        "location": "Remoto (São Paulo/SP)",
+        "location": "Remote (São Paulo/SP)",
         "submittedDocuments": [],
-        "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
+        "jobDescription": "Development and architecture of microservices in Go...",
         "notes": "",
         "createdAt": "2026-07-20T14:10:00Z",
         "updatedAt": "2026-07-20T14:10:00Z",
@@ -448,7 +448,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 ```json
 {
   "status": "INTERVIEW",
-  "notes": "Primeira entrevista técnica agendada para sexta-feira."
+  "notes": "First technical interview scheduled for Friday."
 }
 ```
 
@@ -463,13 +463,13 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "jobUrl": "https://linkedin.com/jobs/view/12345",
   "status": "INTERVIEW",
   "appliedAt": "2026-07-20T14:00:00Z",
-  "location": "Remoto (São Paulo/SP)",
+  "location": "Remote (São Paulo/SP)",
   "submittedDocuments": [
-    "Currículo v2.pdf",
-    "Carta de Apresentação.pdf"
+    "Resume v2.pdf",
+    "Cover Letter.pdf"
   ],
-  "jobDescription": "Desenvolvimento e arquitetura de microsserviços em Go...",
-  "notes": "Primeira entrevista técnica agendada para sexta-feira.",
+  "jobDescription": "Development and architecture of microservices in Go...",
+  "notes": "First technical interview scheduled for Friday.",
   "createdAt": "2026-07-20T14:10:00Z",
   "updatedAt": "2026-07-20T16:45:00Z",
   "events": [
@@ -477,7 +477,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
       "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
       "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
       "type": "AUTOMATIC",
-      "description": "Candidatura criada com status APPLIED",
+      "description": "Application created with status APPLIED",
       "newStatus": "APPLIED",
       "createdAt": "2026-07-20T14:10:00Z"
     },
@@ -485,7 +485,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
       "id": "f8e7d6c5-4b3a-2f1e-0d9c-8b7a6f5e4d3c",
       "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
       "type": "AUTOMATIC",
-      "description": "Status alterado de APPLIED para INTERVIEW",
+      "description": "Status changed from APPLIED to INTERVIEW",
       "previousStatus": "APPLIED",
       "newStatus": "INTERVIEW",
       "createdAt": "2026-07-20T16:45:00Z"
@@ -498,7 +498,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 
 ```json
 {
-  "description": "Encontrei o Tech Lead no LinkedIn e enviei uma mensagem de apresentação."
+  "description": "Found the Tech Lead on LinkedIn and sent an introductory message."
 }
 ```
 
@@ -509,7 +509,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
   "applicationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
   "type": "MANUAL",
-  "description": "Encontrei o Tech Lead no LinkedIn e enviei uma mensagem de apresentação.",
+  "description": "Found the Tech Lead on LinkedIn and sent an introductory message.",
   "createdAt": "2026-07-20T17:00:00Z"
 }
 ```
@@ -523,7 +523,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 ```json
 {
   "total_applications": 24,
-  "funil_by_status": {
+  "funnel_by_status": {
     "TO_APPLY": 5,
     "APPLIED": 12,
     "INTERVIEW": 4,
