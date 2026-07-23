@@ -114,6 +114,7 @@ Para garantir a independência do banco de dados, a camada de domínio trata `Ap
 | - SalaryRange: string (opcional)                            |
 | - Status: ApplicationStatus (TO_APPLY, APPLIED, INTERVIEW,  |
 |                              OFFER, ACCEPTED, REJECTED)     |
+| - ContractType: ContractType (CLT, PJ, INTERNSHIP, OTHER)   |
 | - AppliedAt: time.Time (opcional)                           |
 | - Location: string (opcional)                               |
 | - SubmittedDocuments: []string (opcional)                   |
@@ -169,7 +170,8 @@ No banco relacional PostgreSQL, as tabelas são normalizadas com chaves estrange
 | job_url (TEXT)            |       | previous_status(VARCHAR) |       | created_at (TIMESTAMP|
 | salary_range(VARCHAR)     |       | new_status (VARCHAR)     |       +----------------------+
 | status (VARCHAR)          |       | created_at (TIMESTAMP)   |                  ^
-| applied_at (TIMESTAMP)    |       +--------------------------+                  |
+| contract_type (VARCHAR)   |       +--------------------------+                  |
+| applied_at (TIMESTAMP)    |                                                     |
 | location (VARCHAR)        |                                                     |
 | submitted_documents(JSONB)|                                                     |
 | job_description (TEXT)    |                                                     |
@@ -223,6 +225,7 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 
 Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query parameters_):
 
+- `search`: Busca textual (case-insensitive) pelo nome da vaga (`job_title`) ou nome da empresa (`company_name`). Ex: `?search=Desenvolvedor`.
 - `status`: Filtra por status (ex: `?status=APPLIED` ou múltiplos: `?status=INTERVIEW,OFFER`).
 - `tag_ids`: Filtra por tags (ex: `?tag_ids=uuid-tag-1,uuid-tag-2` — *aplicável à listagem paginada*).
 - `order_by`: Campo utilizado para ordenação das candidaturas. Opções suportadas:
@@ -230,7 +233,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   - `job_title`: Título da vaga (padrão: `asc`).
   - `updated_at`: Data da última atualização da candidatura (padrão: `desc`).
   - `applied_at`: Data de candidatura/aplicação na vaga (padrão: `desc`).
-- `order`: Direção da ordenação (`asc` ou `desc`). Também é possível passar a direção no próprio `order_by` (ex: `?order_by=job_title desc`).
+- `order`: Direção da ordenação (`asc` ou `desc`).
 - `page_size`: Quantidade de itens por página (padrão: `20`, máximo: `100` — *aplicável à listagem paginada*).
 - `page_token`: Token para paginação (`next_page_token` retornado pela chamada anterior — *aplicável à listagem paginada*).
 
@@ -328,7 +331,9 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "company_name": "Hirely Corp",
   "job_title": "Senior Backend Engineer",
   "job_url": "https://linkedin.com/jobs/view/12345",
+  "salary_range": "15k - 20k",
   "status": "APPLIED",
+  "contract_type": "CLT",
   "location": "Remote (São Paulo/SP)",
   "submitted_documents": [
     "Resume v2.pdf",
@@ -349,7 +354,9 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "companyName": "Hirely Corp",
   "jobTitle": "Senior Backend Engineer",
   "jobUrl": "https://linkedin.com/jobs/view/12345",
+  "salaryRange": "15k - 20k",
   "status": "APPLIED",
+  "contractType": "CLT",
   "appliedAt": "2026-07-20T14:00:00Z",
   "location": "Remote (São Paulo/SP)",
   "submittedDocuments": [

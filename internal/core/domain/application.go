@@ -4,6 +4,23 @@ import (
 	"time"
 )
 
+type ContractType string
+
+const (
+	ContractTypeCLT        ContractType = "CLT"
+	ContractTypePJ         ContractType = "PJ"
+	ContractTypeInternship ContractType = "INTERNSHIP"
+	ContractTypeOther      ContractType = "OTHER"
+)
+
+func (c ContractType) IsValid() bool {
+	switch c {
+	case ContractTypeCLT, ContractTypePJ, ContractTypeInternship, ContractTypeOther:
+		return true
+	}
+	return false
+}
+
 type ApplicationStatus string
 
 const (
@@ -22,7 +39,9 @@ type Application struct {
 	CompanyName        string            `json:"companyName"`
 	JobTitle           string            `json:"jobTitle"`
 	JobURL             string            `json:"jobUrl"`
+	SalaryRange        string            `json:"salaryRange,omitempty"`
 	Status             ApplicationStatus `json:"status"`
+	ContractType       *ContractType     `json:"contractType,omitempty"`
 	AppliedAt          *time.Time        `json:"appliedAt"`
 	Location           string            `json:"location"`
 	SubmittedDocuments []string          `json:"submittedDocuments"`

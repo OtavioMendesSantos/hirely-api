@@ -9,7 +9,9 @@ type CreateApplicationRequest struct {
 	CompanyName        string                   `json:"company_name"`
 	JobTitle           string                   `json:"job_title"`
 	JobURL             string                   `json:"job_url"`
+	SalaryRange        string                   `json:"salary_range"`
 	Status             domain.ApplicationStatus `json:"status"`
+	ContractType       *string                  `json:"contract_type,omitempty" validate:"omitempty,oneof=CLT PJ INTERNSHIP OTHER"`
 	Location           string                   `json:"location"`
 	SubmittedDocuments []string                 `json:"submitted_documents"`
 	JobDescription     string                   `json:"job_description"`
@@ -21,7 +23,9 @@ type UpdateApplicationRequest struct {
 	CompanyName        *string                   `json:"company_name"`
 	JobTitle           *string                   `json:"job_title"`
 	JobURL             *string                   `json:"job_url"`
+	SalaryRange        *string                   `json:"salary_range"`
 	Status             *domain.ApplicationStatus `json:"status"`
+	ContractType       *string                   `json:"contract_type,omitempty" validate:"omitempty,oneof=CLT PJ INTERNSHIP OTHER"`
 	Location           *string                   `json:"location"`
 	SubmittedDocuments []string                  `json:"submitted_documents"`
 	JobDescription     *string                   `json:"job_description"`

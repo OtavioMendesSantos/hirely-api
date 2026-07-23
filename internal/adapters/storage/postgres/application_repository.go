@@ -64,14 +64,19 @@ func (r *ApplicationRepository) FindByID(ctx context.Context, id string) (*domai
 	return model.ToDomain(), nil
 }
 
-func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string, search string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var models []ApplicationModel
-	result := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Preload("Events", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at asc")
 		}).
-		Where("user_id = ?", userID).
-		Order(getOrderClause(orderBy, orderDir)).
+		Where("user_id = ?", userID)
+
+	if search != "" {
+		query = query.Where("company_name ILIKE ? OR job_title ILIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+
+	result := query.Order(getOrderClause(orderBy, orderDir)).
 		Find(&models)
 
 	if result.Error != nil {
@@ -86,13 +91,17 @@ func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string,
 	return apps, nil
 }
 
-func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, userID string, search string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var models []ApplicationModel
 	query := r.db.WithContext(ctx).
 		Preload("Events", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at asc")
 		}).
 		Where("user_id = ?", userID)
+
+	if search != "" {
+		query = query.Where("company_name ILIKE ? OR job_title ILIKE ?", "%"+search+"%", "%"+search+"%")
+	}
 
 	if len(statuses) > 0 {
 		query = query.Where("status IN ?", statuses)

@@ -29,7 +29,7 @@ func (m *mockAppRepo) FindByID(ctx context.Context, id string) (*domain.Applicat
 	return app, nil
 }
 
-func (m *mockAppRepo) ListByUserID(ctx context.Context, userID string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (m *mockAppRepo) ListByUserID(ctx context.Context, userID string, search string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var list []*domain.Application
 	for _, app := range m.apps {
 		if app.UserID == userID {
@@ -39,7 +39,7 @@ func (m *mockAppRepo) ListByUserID(ctx context.Context, userID string, orderBy s
 	return list, nil
 }
 
-func (m *mockAppRepo) ListByUserIDWithFilters(ctx context.Context, userID string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (m *mockAppRepo) ListByUserIDWithFilters(ctx context.Context, userID string, search string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	statusMap := make(map[string]bool)
 	for _, st := range statuses {
 		statusMap[st] = true
@@ -207,7 +207,7 @@ func TestApplicationService_ListApplicationsGroupedByStatus(t *testing.T) {
 		Status:      domain.StatusInterview,
 	})
 
-	grouped, err := service.ListApplicationsGroupedByStatus(ctx, "user-1", nil, "", "")
+	grouped, err := service.ListApplicationsGroupedByStatus(ctx, "user-1", "", nil, "", "")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -226,7 +226,7 @@ func TestApplicationService_ListApplicationsGroupedByStatus(t *testing.T) {
 	}
 
 	// With status filter
-	filteredGrouped, err := service.ListApplicationsGroupedByStatus(ctx, "user-1", []string{"INTERVIEW"}, "job_title", "asc")
+	filteredGrouped, err := service.ListApplicationsGroupedByStatus(ctx, "user-1", "", []string{"INTERVIEW"}, "job_title", "asc")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -238,7 +238,7 @@ func TestApplicationService_ListApplicationsGroupedByStatus(t *testing.T) {
 	}
 
 	// Test invalid sort option returns error
-	_, err = service.ListApplications(ctx, "user-1", nil, "invalid_column", "asc")
+	_, err = service.ListApplications(ctx, "user-1", "", nil, "invalid_column", "asc")
 	if !errors.Is(err, domain.ErrInvalidInput) {
 		t.Errorf("expected ErrInvalidInput when ordering by invalid column, got %v", err)
 	}

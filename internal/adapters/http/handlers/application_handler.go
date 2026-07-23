@@ -66,11 +66,19 @@ func (h *ApplicationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var cType *domain.ContractType
+	if req.ContractType != nil {
+		val := domain.ContractType(*req.ContractType)
+		cType = &val
+	}
+
 	input := services.CreateApplicationInput{
 		CompanyName:        req.CompanyName,
 		JobTitle:           req.JobTitle,
 		JobURL:             req.JobURL,
+		SalaryRange:        req.SalaryRange,
 		Status:             req.Status,
+		ContractType:       cType,
 		Location:           req.Location,
 		SubmittedDocuments: req.SubmittedDocuments,
 		JobDescription:     req.JobDescription,
@@ -117,8 +125,9 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	orderBy := r.URL.Query().Get("order_by")
 	orderDir := r.URL.Query().Get("order")
+	search := r.URL.Query().Get("search")
 
-	apps, err := h.appService.ListApplications(r.Context(), userID, statuses, orderBy, orderDir)
+	apps, err := h.appService.ListApplications(r.Context(), userID, search, statuses, orderBy, orderDir)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
 			dto.WriteError(w, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
@@ -162,8 +171,9 @@ func (h *ApplicationHandler) GroupedByStatus(w http.ResponseWriter, r *http.Requ
 
 	orderBy := r.URL.Query().Get("order_by")
 	orderDir := r.URL.Query().Get("order")
+	search := r.URL.Query().Get("search")
 
-	grouped, err := h.appService.ListApplicationsGroupedByStatus(r.Context(), userID, statuses, orderBy, orderDir)
+	grouped, err := h.appService.ListApplicationsGroupedByStatus(r.Context(), userID, search, statuses, orderBy, orderDir)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
 			dto.WriteError(w, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
@@ -240,11 +250,19 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var cType *domain.ContractType
+	if req.ContractType != nil {
+		val := domain.ContractType(*req.ContractType)
+		cType = &val
+	}
+
 	input := services.UpdateApplicationInput{
 		CompanyName:        req.CompanyName,
 		JobTitle:           req.JobTitle,
 		JobURL:             req.JobURL,
+		SalaryRange:        req.SalaryRange,
 		Status:             req.Status,
+		ContractType:       cType,
 		Location:           req.Location,
 		SubmittedDocuments: req.SubmittedDocuments,
 		JobDescription:     req.JobDescription,

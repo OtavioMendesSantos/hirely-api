@@ -15,7 +15,9 @@ type CreateApplicationInput struct {
 	CompanyName        string
 	JobTitle           string
 	JobURL             string
+	SalaryRange        string
 	Status             domain.ApplicationStatus
+	ContractType       *domain.ContractType
 	Location           string
 	SubmittedDocuments []string
 	JobDescription     string
@@ -27,7 +29,9 @@ type UpdateApplicationInput struct {
 	CompanyName        *string
 	JobTitle           *string
 	JobURL             *string
+	SalaryRange        *string
 	Status             *domain.ApplicationStatus
+	ContractType       *domain.ContractType
 	Location           *string
 	SubmittedDocuments []string
 	JobDescription     *string
@@ -75,7 +79,14 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, userID strin
 	}
 
 	app := domain.NewApplication(uuid.NewString(), userID, companyName, jobTitle, status)
+	
+	if input.ContractType != nil && !input.ContractType.IsValid() {
+		return nil, domain.ErrInvalidInput
+	}
+	app.ContractType = input.ContractType
+	
 	app.JobURL = strings.TrimSpace(input.JobURL)
+	app.SalaryRange = strings.TrimSpace(input.SalaryRange)
 	app.Location = strings.TrimSpace(input.Location)
 	app.JobDescription = input.JobDescription
 	app.Notes = input.Notes
@@ -169,7 +180,7 @@ func normalizeOrderOptions(orderBy, orderDir string) (string, string, bool) {
 	return orderBy, orderDir, true
 }
 
-func (s *ApplicationService) ListApplications(ctx context.Context, userID string, statusFilters []string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (s *ApplicationService) ListApplications(ctx context.Context, userID string, search string, statusFilters []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
 		return nil, domain.ErrInvalidInput
@@ -189,13 +200,13 @@ func (s *ApplicationService) ListApplications(ctx context.Context, userID string
 	}
 
 	if len(validFilters) > 0 {
-		return s.appRepo.ListByUserIDWithFilters(ctx, userID, validFilters, normOrderBy, normOrderDir)
+		return s.appRepo.ListByUserIDWithFilters(ctx, userID, search, validFilters, normOrderBy, normOrderDir)
 	}
-	return s.appRepo.ListByUserID(ctx, userID, normOrderBy, normOrderDir)
+	return s.appRepo.ListByUserID(ctx, userID, search, normOrderBy, normOrderDir)
 }
 
-func (s *ApplicationService) ListApplicationsGroupedByStatus(ctx context.Context, userID string, statusFilters []string, orderBy string, orderDir string) (map[domain.ApplicationStatus][]*domain.Application, error) {
-	apps, err := s.ListApplications(ctx, userID, statusFilters, orderBy, orderDir)
+func (s *ApplicationService) ListApplicationsGroupedByStatus(ctx context.Context, userID string, search string, statusFilters []string, orderBy string, orderDir string) (map[domain.ApplicationStatus][]*domain.Application, error) {
+	apps, err := s.ListApplications(ctx, userID, search, statusFilters, orderBy, orderDir)
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +263,15 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, userID strin
 	}
 	if input.JobURL != nil {
 		app.JobURL = strings.TrimSpace(*input.JobURL)
+	}
+	if input.SalaryRange != nil {
+		app.SalaryRange = strings.TrimSpace(*input.SalaryRange)
+	}
+	if input.ContractType != nil {
+		if !input.ContractType.IsValid() {
+			return nil, domain.ErrInvalidInput
+		}
+		app.ContractType = input.ContractType
 	}
 	if input.Location != nil {
 		app.Location = strings.TrimSpace(*input.Location)
