@@ -168,8 +168,16 @@ func (r *ApplicationRepository) UpdateStatus(ctx context.Context, app *domain.Ap
 
 func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID string, startDate, endDate *time.Time) (*domain.ApplicationStats, error) {
 	stats := &domain.ApplicationStats{
-		FunnelByStatus: make(map[string]int),
-		TopTags:        make([]domain.TagCountStats, 0),
+		FunnelByStatus: map[string]int{
+			string(domain.StatusToApply):   0,
+			string(domain.StatusApplied):   0,
+			string(domain.StatusInterview): 0,
+			string(domain.StatusOffer):     0,
+			string(domain.StatusAccepted):  0,
+			string(domain.StatusRejected):  0,
+			string(domain.StatusOther):     0,
+		},
+		TopTags: make([]domain.TagCountStats, 0),
 	}
 
 	query1 := r.db.WithContext(ctx).Model(&ApplicationModel{}).Where("user_id = ?", userID)
