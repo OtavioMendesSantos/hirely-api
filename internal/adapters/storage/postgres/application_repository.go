@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/ports"
 
@@ -40,9 +42,16 @@ func getOrderClause(orderBy string, orderDir string) string {
 }
 
 func (r *ApplicationRepository) Create(ctx context.Context, app *domain.Application) error {
-	model := ApplicationFromDomain(app)
-	result := r.db.WithContext(ctx).Create(model)
-	return result.Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		model := ApplicationFromDomain(app)
+		if err := tx.Omit("Tags").Create(model).Error; err != nil {
+			return err
+		}
+		if len(model.Tags) > 0 {
+			return tx.Model(model).Association("Tags").Append(model.Tags)
+		}
+		return nil
+	})
 }
 
 func (r *ApplicationRepository) FindByID(ctx context.Context, id string) (*domain.Application, error) {
@@ -121,9 +130,13 @@ func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, use
 }
 
 func (r *ApplicationRepository) Update(ctx context.Context, app *domain.Application) error {
-	model := ApplicationFromDomain(app)
-	result := r.db.WithContext(ctx).Omit("Events", "User").Save(model)
-	return result.Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		model := ApplicationFromDomain(app)
+		if err := tx.Omit("Events", "User", "Tags").Save(model).Error; err != nil {
+			return err
+		}
+		return tx.Model(model).Association("Tags").Replace(model.Tags)
+	})
 }
 
 func (r *ApplicationRepository) Delete(ctx context.Context, id string) error {
@@ -134,7 +147,10 @@ func (r *ApplicationRepository) Delete(ctx context.Context, id string) error {
 func (r *ApplicationRepository) UpdateStatus(ctx context.Context, app *domain.Application, event *domain.Event) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		appModel := ApplicationFromDomain(app)
-		if err := tx.Omit("Events", "User").Save(appModel).Error; err != nil {
+		if err := tx.Omit("Events", "User", "Tags").Save(appModel).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(appModel).Association("Tags").Replace(appModel.Tags); err != nil {
 			return err
 		}
 		if event != nil {
@@ -145,6 +161,67 @@ func (r *ApplicationRepository) UpdateStatus(ctx context.Context, app *domain.Ap
 		}
 		return nil
 	})
+}
+
+func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID string, startDate, endDate *time.Time) (*domain.ApplicationStats, error) {
+	stats := &domain.ApplicationStats{
+		FunnelByStatus: make(map[string]int),
+		TopTags:        make([]domain.TagCountStats, 0),
+	}
+
+	query1 := r.db.WithContext(ctx).Model(&ApplicationModel{}).Where("user_id = ?", userID)
+	if startDate != nil {
+		query1 = query1.Where("created_at >= ?", startDate)
+	}
+	if endDate != nil {
+		query1 = query1.Where("created_at <= ?", endDate)
+	}
+
+	type statusCount struct {
+		Status string
+		Count  int
+	}
+	var funnel []statusCount
+	if err := query1.Select("status, count(id) as count").Group("status").Scan(&funnel).Error; err != nil {
+		return nil, err
+	}
+
+	total := 0
+	interviewOrBeyond := 0
+	for _, f := range funnel {
+		stats.FunnelByStatus[f.Status] = f.Count
+		total += f.Count
+		if f.Status == string(domain.StatusInterview) || f.Status == string(domain.StatusOffer) || f.Status == string(domain.StatusAccepted) {
+			interviewOrBeyond += f.Count
+		}
+	}
+	stats.TotalApplications = total
+	
+	appliedOrBeyond := total - stats.FunnelByStatus[string(domain.StatusToApply)]
+	if appliedOrBeyond > 0 {
+		stats.ConversionRateInterview = float64(interviewOrBeyond) / float64(appliedOrBeyond)
+	}
+
+	query2 := r.db.WithContext(ctx).Table("tags t").
+		Select("t.name as tag_name, count(at.application_id) as count").
+		Joins("JOIN application_tags at ON t.id = at.tag_id").
+		Joins("JOIN applications a ON a.id = at.application_id").
+		Where("a.user_id = ?", userID)
+		
+	if startDate != nil {
+		query2 = query2.Where("a.created_at >= ?", startDate)
+	}
+	if endDate != nil {
+		query2 = query2.Where("a.created_at <= ?", endDate)
+	}
+
+	query2 = query2.Group("t.id, t.name").Order("count DESC").Limit(5)
+
+	if err := query2.Scan(&stats.TopTags).Error; err != nil {
+		return nil, err
+	}
+
+	return stats, nil
 }
 
 var _ ports.ApplicationRepository = (*ApplicationRepository)(nil)

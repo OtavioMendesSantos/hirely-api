@@ -6,15 +6,19 @@ import (
 	"net/http"
 )
 
-func SetupRoutes(authHandler *handlers.AuthHandler, userHandler *handlers.UserHandler, appHandler *handlers.ApplicationHandler, healthHandler *handlers.HealthHandler, jwtSecret string) http.Handler {
+func SetupRoutes(authHandler *handlers.AuthHandler, oauthHandler *handlers.OAuthHandler, userHandler *handlers.UserHandler, appHandler *handlers.ApplicationHandler, tagHandler *handlers.TagHandler, healthHandler *handlers.HealthHandler, jwtSecret string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /v1/health", healthHandler.Check)
 	mux.HandleFunc("POST /v1/users", authHandler.Register)
 	mux.HandleFunc("POST /v1/users:login", authHandler.Login)
 
+	mux.HandleFunc("GET /v1/users:oauthUrl", oauthHandler.GoogleAuthURL)
+	mux.HandleFunc("POST /v1/users:oauthLogin", oauthHandler.GoogleLogin)
+
 	authGuard := middleware.Auth(jwtSecret)
 	mux.Handle("GET /v1/users/me", authGuard(http.HandlerFunc(userHandler.GetMe)))
+
 	mux.Handle("POST /v1/users/{user_id}/applications", authGuard(http.HandlerFunc(appHandler.Create)))
 	mux.Handle("GET /v1/users/{user_id}/applications", authGuard(http.HandlerFunc(appHandler.List)))
 	mux.Handle("GET /v1/users/{user_id}/applications/grouped-by-status", authGuard(http.HandlerFunc(appHandler.GroupedByStatus)))
@@ -22,6 +26,11 @@ func SetupRoutes(authHandler *handlers.AuthHandler, userHandler *handlers.UserHa
 	mux.Handle("PATCH /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.Update)))
 	mux.Handle("DELETE /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.Delete)))
 	mux.Handle("POST /v1/users/{user_id}/applications/{application_id}/events", authGuard(http.HandlerFunc(appHandler.AddEvent)))
+	mux.Handle("GET /v1/users/{user_id}/applications:stats", authGuard(http.HandlerFunc(appHandler.GetStats)))
+
+	mux.Handle("POST /v1/users/{user_id}/tags", authGuard(http.HandlerFunc(tagHandler.Create)))
+	mux.Handle("GET /v1/users/{user_id}/tags", authGuard(http.HandlerFunc(tagHandler.List)))
+	mux.Handle("DELETE /v1/users/{user_id}/tags/{tag_id}", authGuard(http.HandlerFunc(tagHandler.Delete)))
 
 	return middleware.Trace(middleware.CORS(mux))
 }

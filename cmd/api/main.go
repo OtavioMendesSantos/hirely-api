@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -39,19 +40,23 @@ func main() {
 	userRepo := postgres.NewUserRepository(db)
 	appRepo := postgres.NewApplicationRepository(db)
 	eventRepo := postgres.NewEventRepository(db)
+	tagRepo := postgres.NewTagRepository(db)
 
 	// Services
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpiresIn)
 	userService := services.NewUserService(userRepo)
-	appService := services.NewApplicationService(appRepo, eventRepo)
+	appService := services.NewApplicationService(appRepo, eventRepo, tagRepo)
+	tagService := services.NewTagService(tagRepo)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService)
+	oauthHandler := handlers.NewOAuthHandler(authService, cfg.GoogleClientID, cfg.GoogleSecretID, strings.TrimSuffix(cfg.FrontEndURL, "/")+"/auth/callback")
 	userHandler := handlers.NewUserHandler(userService)
 	appHandler := handlers.NewApplicationHandler(appService)
+	tagHandler := handlers.NewTagHandler(tagService)
 	healthHandler := handlers.NewHealthHandler()
 
-	mux := adapterHttp.SetupRoutes(authHandler, userHandler, appHandler, healthHandler, cfg.JWTSecret)
+	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, appHandler, tagHandler, healthHandler, cfg.JWTSecret)
 
 	startHTTPServer(cfg, mux)
 }

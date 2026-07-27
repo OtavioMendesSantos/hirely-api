@@ -27,6 +27,11 @@ func (m *mockUserRepoForHandlerTest) Create(ctx context.Context, user *domain.Us
 	return nil
 }
 
+func (m *mockUserRepoForHandlerTest) Update(ctx context.Context, user *domain.User) error {
+	m.users[user.ID] = user
+	return nil
+}
+
 func (m *mockUserRepoForHandlerTest) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	for _, u := range m.users {
 		if u.Email == email {

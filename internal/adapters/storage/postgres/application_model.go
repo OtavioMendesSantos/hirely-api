@@ -23,6 +23,7 @@ type ApplicationModel struct {
 	CreatedAt          time.Time                `gorm:"type:timestamp;not null"`
 	UpdatedAt          time.Time                `gorm:"type:timestamp;not null"`
 	Events             []EventModel             `gorm:"foreignKey:ApplicationID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Tags               []TagModel               `gorm:"many2many:application_tags;joinForeignKey:application_id;joinReferences:tag_id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 func (ApplicationModel) TableName() string {
@@ -35,6 +36,14 @@ func (m *ApplicationModel) ToDomain() *domain.Application {
 		events = make([]domain.Event, len(m.Events))
 		for i, e := range m.Events {
 			events[i] = *e.ToDomain()
+		}
+	}
+
+	var tags []domain.Tag
+	if len(m.Tags) > 0 {
+		tags = make([]domain.Tag, len(m.Tags))
+		for i, t := range m.Tags {
+			tags[i] = *t.ToDomain()
 		}
 	}
 
@@ -55,6 +64,7 @@ func (m *ApplicationModel) ToDomain() *domain.Application {
 		CreatedAt:          m.CreatedAt,
 		UpdatedAt:          m.UpdatedAt,
 		Events:             events,
+		Tags:               tags,
 	}
 }
 
@@ -64,6 +74,14 @@ func ApplicationFromDomain(a *domain.Application) *ApplicationModel {
 		events = make([]EventModel, len(a.Events))
 		for i, e := range a.Events {
 			events[i] = *EventFromDomain(&e)
+		}
+	}
+
+	var tags []TagModel
+	if len(a.Tags) > 0 {
+		tags = make([]TagModel, len(a.Tags))
+		for i, t := range a.Tags {
+			tags[i] = *TagFromDomain(&t)
 		}
 	}
 
@@ -84,5 +102,6 @@ func ApplicationFromDomain(a *domain.Application) *ApplicationModel {
 		CreatedAt:          a.CreatedAt,
 		UpdatedAt:          a.UpdatedAt,
 		Events:             events,
+		Tags:               tags,
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type ApplicationHandler struct {
@@ -84,6 +85,7 @@ func (h *ApplicationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		JobDescription:     req.JobDescription,
 		Notes:              req.Notes,
 		AppliedAt:          req.AppliedAt,
+		TagIDs:             req.TagIDs,
 	}
 
 	app, err := h.appService.CreateApplication(r.Context(), userID, input)
@@ -268,6 +270,7 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		JobDescription:     req.JobDescription,
 		Notes:              req.Notes,
 		AppliedAt:          req.AppliedAt,
+		TagIDs:             req.TagIDs,
 	}
 
 	app, err := h.appService.UpdateApplication(r.Context(), userID, appID, input)
@@ -375,4 +378,55 @@ func (h *ApplicationHandler) AddEvent(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(event)
+}
+
+func (h *ApplicationHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.checkIsolation(w, r)
+	if !ok {
+		return
+	}
+
+	var startDate, endDate *time.Time
+
+	startStr := r.URL.Query().Get("start_date")
+	if startStr != "" {
+		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
+			startDate = &t
+		} else if t, err := time.Parse("2006-01-02", startStr); err == nil {
+			startDate = &t
+		}
+	}
+
+	endStr := r.URL.Query().Get("end_date")
+	if endStr != "" {
+		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
+			endDate = &t
+		} else if t, err := time.Parse("2006-01-02", endStr); err == nil {
+			// Include the entire end date by setting it to the end of the day
+			t = t.Add(24 * time.Hour).Add(-time.Nanosecond)
+			endDate = &t
+		}
+	}
+
+	stats, err := h.appService.GetApplicationStats(r.Context(), userID, startDate, endDate)
+	if err != nil {
+		slog.Error("Failed to get application stats",
+			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("operation", "GetStats"),
+			slog.String("error", err.Error()),
+		)
+		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		return
+	}
+
+	resp := dto.ApplicationStatsResponse{
+		TotalApplications:       stats.TotalApplications,
+		FunnelByStatus:          stats.FunnelByStatus,
+		ConversionRateInterview: stats.ConversionRateInterview,
+		TopTags:                 stats.TopTags,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }

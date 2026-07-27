@@ -11,7 +11,7 @@ O **Hirely** é um aplicativo web focado na gestão, centralização e rastreabi
 - **[RF-01] Autenticação e Gestão de Usuários:**
   - _Registro Tradicional:_ Cadastro de usuário com **Nome, Email e Senha** (armazenamento seguro via hash forte `bcrypt` ou `argon2id`).
   - _Login Tradicional:_ Autenticação por **Email e Senha** com emissão de token JWT Bearer (validade padrão de 24 horas ou 30 dias com `rememberMe`).
-  - _Login Social (OAuth 2.0 / OIDC):_ Autenticação via provedores **Google** e **LinkedIn**, com vinculação automática de conta por e-mail verificado.
+  - _Login Social (OAuth 2.0 / OIDC):_ Autenticação via provedor **Google**, com vinculação automática de conta por e-mail verificado.
   - _Isolamento de Dados:_ Isolamento estrito dos dados e recursos vinculados ao `user_id` autenticado.
 - **[RF-02] Quadro Kanban Único (Job Applications):** Visualização e gerenciamento de candidaturas através de estados fixos de fluxo: _To Apply (`TO_APPLY`), Applied (`APPLIED`), Interview (`INTERVIEW`), Offer (`OFFER`), Rejected (`REJECTED`)_. Suporte completo a criação, atualização de status/dados e exclusão/arquivamento.
 - **[RF-03] Sistema Flexível de Tags:** Usuários podem criar, listar e customizar suas próprias tags com cores personalizadas (ex: "Remote", "Go", "Angular") e utilizá-las para filtragem dinâmica no quadro.
@@ -62,7 +62,7 @@ hirely-api/
 │       │   ├── handlers/
 │       │   │   ├── health_handler.go      # Monitoramento de infraestrutura
 │       │   │   ├── auth_handler.go        # Autenticação (Register / Login Email e Senha)
-│       │   │   ├── oauth_handler.go       # Autenticação Social (OAuth 2.0 Google / LinkedIn)
+│       │   │   ├── oauth_handler.go       # Autenticação Social (OAuth 2.0 Google)
 │       │   │   ├── application_handler.go # CRUD de Job Applications
 │       │   │   ├── tag_handler.go         # Gestão de Tags
 │       │   │   ├── event_handler.go       # Gestão da Timeline de Eventos
@@ -73,8 +73,15 @@ hirely-api/
 │       │       └── errors.go       # Estrutura padronizada de erros HTTP (RFC 7807 / Google Standard)
 │       └── storage/                # Camada de Persistência
 │           └── postgres/           # Adaptador concreto utilizando GORM
-│               ├── models.go       # Schemas relacionais (ApplicationModel, TagModel, EventModel)
-│               └── repositories.go # Implementação concreta de ports/repositories
+│               ├── db.go           # Conexão e configuração do GORM
+│               ├── application_model.go
+│               ├── application_repository.go
+│               ├── event_model.go
+│               ├── event_repository.go
+│               ├── tag_model.go
+│               ├── tag_repository.go
+│               ├── user_model.go
+│               └── user_repository.go
 ├── .env                            # Variáveis de ambiente locais (ignorado em prod)
 ├── Dockerfile                      # Multi-stage build (Builder Alpine -> Final scratch/alpine)
 ├── go.mod
@@ -90,16 +97,16 @@ Para garantir a independência do banco de dados, a camada de domínio trata `Ap
 ### 3.1 Entidades do Domínio (`internal/core/domain`)
 
 ```text
-+-------------------------------+       +------------------------------------+
-|         User (Entity)         | 1   N |        OAuthAccount (Entity)       |
-+-------------------------------+-------+------------------------------------+
-| - ID: string (UUID/ULID)      |       | - ID: string                       |
-| - Name: string                |       | - UserID: string                   |
-| - Email: string (Unique)      |       | - Provider: OAuthProvider          |
-| - PasswordHash: string (opt)  |       |   (GOOGLE, LINKEDIN)               |
-| - OAuthAccounts: []OAuthAccount|      | - ProviderUserID: string           |
-| - CreatedAt: time.Time        |       | - CreatedAt: time.Time             |
-+-------------------------------+       +------------------------------------+
++-------------------------------+
+|         User (Entity)         |
++-------------------------------+
+| - ID: string (UUID/ULID)      |
+| - Name: string                |
+| - Email: string (Unique)      |
+| - PasswordHash: string (opt)  |
+| - GoogleID: string (opt)      |
+| - CreatedAt: time.Time        |
++-------------------------------+
                |
                | 1:N
                v
@@ -147,15 +154,16 @@ Para garantir a independência do banco de dados, a camada de domínio trata `Ap
 No banco relacional PostgreSQL, as tabelas são normalizadas com chaves estrangeiras (`FK`) e índices de performance por `user_id`:
 
 ```text
-+----------------------+       +--------------------------+
-|        users         | 1   N |      oauth_accounts      |
-+----------------------+-------+--------------------------+
-| id (PK, UUID)        |       | id (PK, UUID)            |
-| name (VARCHAR)       |       | user_id (FK, UUID)       |
-| email (Unique)       |       | provider (VARCHAR)       |
-| password_hash(VARCHAR|       | provider_user_id (Unique)|
-| created_at(TIMESTAMP)|       | created_at (TIMESTAMP)   |
-+----------------------+       +--------------------------+
++----------------------+
+|        users         |
++----------------------+
+| id (PK, UUID)        |
+| name (VARCHAR)       |
+| email (Unique)       |
+| password_hash(VARCHAR|
+| google_id (VARCHAR)  |
+| created_at(TIMESTAMP)|
++----------------------+
           ^
           | 1
           |
@@ -204,8 +212,8 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 | `GET`       | `/v1/health`                                               | Verifica integridade básica e timestamp em UTC do servidor.            | Pública                    |
 | `POST`      | `/v1/users`                                                | Registro de usuário (padrão `Create` resource do Google API Design).   | Pública                    |
 | `POST`      | `/v1/users:login`                                          | Login com Email, Senha e suporte a `rememberMe` (30 dias ou 24h).      | Pública                    |
-| `GET`       | `/v1/users:oauthUrl?provider={provider}`                   | Retorna URL de autorização OAuth 2.0 (`google` ou `linkedin`).         | Pública                    |
-| `POST`      | `/v1/users:oauthLogin`                                     | Recebe código OAuth (`provider`, `code`), autentica e retorna token.   | Pública                    |
+| `GET`       | `/v1/users:oauthUrl`                                       | Retorna URL de autorização OAuth 2.0 (`google`).                       | Pública                    |
+| `POST`      | `/v1/users:oauthLogin`                                     | Recebe código OAuth (`code`), autentica e retorna token.               | Pública                    |
 | `GET`       | `/v1/users/me`                                             | Retorna informações do usuário autenticado.                            | JWT                        |
 | `POST`      | `/v1/users/{user_id}/applications`                         | Cria uma nova candidatura para o usuário.                              | JWT (`user_id` compatível) |
 | `GET`       | `/v1/users/{user_id}/applications`                         | Lista candidaturas com suporte a filtros e paginação.                  | JWT                        |
@@ -237,9 +245,16 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 - `page_size`: Quantidade de itens por página (padrão: `20`, máximo: `100` — *aplicável à listagem paginada*).
 - `page_token`: Token para paginação (`next_page_token` retornado pela chamada anterior — *aplicável à listagem paginada*).
 
+### 4.3 Parâmetros de Filtro de Tempo (`GET /v1/users/{user_id}/applications:stats`)
+
+O endpoint de métricas e agregações aceita os seguintes parâmetros de consulta opcionais para limitar os dados por um espaço de tempo (intervalo de criação da candidatura):
+
+- `start_date`: Data de início para as métricas (formato ISO-8601/RFC3339 ou YYYY-MM-DD). Ex: `?start_date=2026-07-01`.
+- `end_date`: Data de fim para as métricas (formato ISO-8601/RFC3339 ou YYYY-MM-DD). Ex: `?end_date=2026-07-31`.
+
 ---
 
-### 4.3 Exemplos de Payloads JSON
+### 4.4 Exemplos de Payloads JSON
 
 #### Requisição de Registro (`RegisterRequest` - `POST /v1/users`)
 
@@ -293,8 +308,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 
 ```json
 {
-  "provider": "google",
-  "code": "4/0AeaYSHC...",
+  "code": "4/0AeaYSHC..."
   "redirect_uri": "https://hirely.app/auth/callback"
 }
 ```
@@ -341,7 +355,8 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   ],
   "job_description": "Development and architecture of microservices in Go...",
   "notes": "Direct referral via LinkedIn by Tech Lead.",
-  "applied_at": "2026-07-20T14:00:00Z"
+  "applied_at": "2026-07-20T14:00:00Z",
+  "tag_ids": ["t1g2h3i4-j5k6-7l8m-9n0o-1p2q3r4s5t6u"]
 }
 ```
 
@@ -367,6 +382,15 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "notes": "Direct referral via LinkedIn by Tech Lead.",
   "createdAt": "2026-07-20T14:10:00Z",
   "updatedAt": "2026-07-20T14:10:00Z",
+  "tags": [
+    {
+      "id": "t1g2h3i4-j5k6-7l8m-9n0o-1p2q3r4s5t6u",
+      "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+      "name": "Remote",
+      "colorHex": "#FF5733",
+      "createdAt": "2026-07-20T17:00:00Z"
+    }
+  ],
   "events": [
     {
       "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
@@ -401,6 +425,15 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
       "notes": "Direct referral via LinkedIn.",
       "createdAt": "2026-07-20T14:10:00Z",
       "updatedAt": "2026-07-20T14:10:00Z",
+      "tags": [
+        {
+          "id": "t1g2h3i4-j5k6-7l8m-9n0o-1p2q3r4s5t6u",
+          "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+          "name": "Remote",
+          "colorHex": "#FF5733",
+          "createdAt": "2026-07-20T17:00:00Z"
+        }
+      ],
       "events": [
         {
           "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
@@ -437,6 +470,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
         "notes": "",
         "createdAt": "2026-07-20T14:10:00Z",
         "updatedAt": "2026-07-20T14:10:00Z",
+        "tags": [],
         "events": []
       }
     ],
@@ -455,7 +489,8 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 ```json
 {
   "status": "INTERVIEW",
-  "notes": "First technical interview scheduled for Friday."
+  "notes": "First technical interview scheduled for Friday.",
+  "tag_ids": ["t1g2h3i4-j5k6-7l8m-9n0o-1p2q3r4s5t6u"]
 }
 ```
 
@@ -479,6 +514,15 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
   "notes": "First technical interview scheduled for Friday.",
   "createdAt": "2026-07-20T14:10:00Z",
   "updatedAt": "2026-07-20T16:45:00Z",
+  "tags": [
+    {
+      "id": "t1g2h3i4-j5k6-7l8m-9n0o-1p2q3r4s5t6u",
+      "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+      "name": "Remote",
+      "colorHex": "#FF5733",
+      "createdAt": "2026-07-20T17:00:00Z"
+    }
+  ],
   "events": [
     {
       "id": "e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
@@ -521,7 +565,44 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 }
 ```
 
-#### Resposta de Exclusão de Candidatura (`DELETE /v1/users/{user_id}/applications/{application_id}`)
+#### Requisição de Criação de Tag (`CreateTagRequest` - `POST /v1/users/{user_id}/tags`)
+
+```json
+{
+  "name": "Remote",
+  "color_hex": "#FF5733"
+}
+```
+
+#### Resposta de Criação de Tag (`Tag` - `POST /v1/users/{user_id}/tags`)
+
+```json
+{
+  "id": "t1g2h3i4-j5k6-7l8m-9n0o-1p2q3r4s5t6u",
+  "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+  "name": "Remote",
+  "colorHex": "#FF5733",
+  "createdAt": "2026-07-20T17:00:00Z"
+}
+```
+
+#### Resposta da Listagem de Tags (`ListTagsResponse` - `GET /v1/users/{user_id}/tags`)
+
+```json
+{
+  "tags": [
+    {
+      "id": "t1g2h3i4-j5k6-7l8m-9n0o-1p2q3r4s5t6u",
+      "userId": "c3a7e4b2-891d-4f1a-b6e9-2f4d1e8c9a0b",
+      "name": "Remote",
+      "colorHex": "#FF5733",
+      "createdAt": "2026-07-20T17:00:00Z"
+    }
+  ]
+}
+```
+
+#### Resposta de Exclusão de Candidatura ou Tag (`DELETE`)
 
 *(Sem corpo de resposta - Código de status HTTP `204 No Content`)*
 

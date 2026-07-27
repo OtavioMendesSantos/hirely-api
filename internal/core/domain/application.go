@@ -50,6 +50,19 @@ type Application struct {
 	CreatedAt          time.Time         `json:"createdAt"`
 	UpdatedAt          time.Time         `json:"updatedAt"`
 	Events             []Event           `json:"events,omitempty"`
+	Tags               []Tag             `json:"tags,omitempty"`
+}
+
+type ApplicationStats struct {
+	TotalApplications       int               `json:"total_applications"`
+	FunnelByStatus          map[string]int    `json:"funnel_by_status"`
+	ConversionRateInterview float64           `json:"conversion_rate_interview"`
+	TopTags                 []TagCountStats   `json:"top_tags"`
+}
+
+type TagCountStats struct {
+	TagName string `json:"tag_name"`
+	Count   int    `json:"count"`
 }
 
 func NewApplication(id, userID, companyName, jobTitle string, status ApplicationStatus) *Application {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"hirely-api/internal/adapters/http/dto"
 	"hirely-api/internal/adapters/http/middleware"
@@ -74,6 +75,20 @@ func (m *mockAppRepoForHandlerTest) UpdateStatus(ctx context.Context, app *domai
 	return nil
 }
 
+func (m *mockAppRepoForHandlerTest) GetStatsByUserID(ctx context.Context, userID string, startDate, endDate *time.Time) (*domain.ApplicationStats, error) {
+	return &domain.ApplicationStats{
+		TotalApplications: 10,
+		FunnelByStatus: map[string]int{
+			"applied": 10,
+			"interview": 5,
+		},
+		ConversionRateInterview: 50.0,
+		TopTags: []domain.TagCountStats{
+			{TagName: "Backend", Count: 3},
+		},
+	}, nil
+}
+
 type mockEventRepoForHandlerTest struct {
 	events map[string]*domain.Event
 }
@@ -100,7 +115,7 @@ func (m *mockEventRepoForHandlerTest) GetByApplicationID(ctx context.Context, ap
 func TestApplicationHandler_CreateAndList_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
-	appService := services.NewApplicationService(appRepo, eventRepo)
+	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
 	handler := NewApplicationHandler(appService)
 
 	payload := dto.CreateApplicationRequest{
@@ -155,7 +170,7 @@ func TestApplicationHandler_CreateAndList_Success(t *testing.T) {
 func TestApplicationHandler_UserIsolation_Forbidden(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
-	appService := services.NewApplicationService(appRepo, eventRepo)
+	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
 	handler := NewApplicationHandler(appService)
 
 	req := httptest.NewRequest("GET", "/v1/users/user-123/applications", nil)
@@ -174,7 +189,7 @@ func TestApplicationHandler_UserIsolation_Forbidden(t *testing.T) {
 func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
-	appService := services.NewApplicationService(appRepo, eventRepo)
+	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
 	handler := NewApplicationHandler(appService)
 
 	ctx := context.Background()
@@ -247,7 +262,7 @@ func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 func TestApplicationHandler_GroupedByStatus_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
-	appService := services.NewApplicationService(appRepo, eventRepo)
+	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
 	handler := NewApplicationHandler(appService)
 
 	ctx := context.Background()
@@ -292,7 +307,7 @@ func TestApplicationHandler_GroupedByStatus_Success(t *testing.T) {
 func TestApplicationHandler_Ordering_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
-	appService := services.NewApplicationService(appRepo, eventRepo)
+	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
 	handler := NewApplicationHandler(appService)
 
 	ctx := context.Background()
@@ -324,5 +339,38 @@ func TestApplicationHandler_Ordering_Success(t *testing.T) {
 
 	if recGrouped.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", recGrouped.Code, recGrouped.Body.String())
+	}
+}
+
+func TestApplicationHandler_GetStats_Success(t *testing.T) {
+	appRepo := newMockAppRepoForHandlerTest()
+	eventRepo := newMockEventRepoForHandlerTest()
+	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
+	handler := NewApplicationHandler(appService)
+
+	req := httptest.NewRequest("GET", "/v1/users/user-123/applications/stats?start_date=2024-01-01&end_date=2024-12-31", nil)
+	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
+	req.SetPathValue("user_id", "user-123")
+
+	rec := httptest.NewRecorder()
+	handler.GetStats(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp dto.ApplicationStatsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if resp.TotalApplications != 10 {
+		t.Errorf("expected 10 total applications, got %d", resp.TotalApplications)
+	}
+	if resp.ConversionRateInterview != 50.0 {
+		t.Errorf("expected 50.0 conversion rate, got %f", resp.ConversionRateInterview)
+	}
+	if len(resp.TopTags) != 1 || resp.TopTags[0].TagName != "Backend" {
+		t.Errorf("unexpected top tags: %+v", resp.TopTags)
 	}
 }

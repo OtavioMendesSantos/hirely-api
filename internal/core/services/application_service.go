@@ -23,6 +23,7 @@ type CreateApplicationInput struct {
 	JobDescription     string
 	Notes              string
 	AppliedAt          *time.Time
+	TagIDs             []string
 }
 
 type UpdateApplicationInput struct {
@@ -37,17 +38,20 @@ type UpdateApplicationInput struct {
 	JobDescription     *string
 	Notes              *string
 	AppliedAt          *time.Time
+	TagIDs             []string
 }
 
 type ApplicationService struct {
 	appRepo   ports.ApplicationRepository
 	eventRepo ports.EventRepository
+	tagRepo   ports.TagRepository
 }
 
-func NewApplicationService(appRepo ports.ApplicationRepository, eventRepo ports.EventRepository) *ApplicationService {
+func NewApplicationService(appRepo ports.ApplicationRepository, eventRepo ports.EventRepository, tagRepo ports.TagRepository) *ApplicationService {
 	return &ApplicationService{
 		appRepo:   appRepo,
 		eventRepo: eventRepo,
+		tagRepo:   tagRepo,
 	}
 }
 
@@ -93,6 +97,18 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, userID strin
 	app.AppliedAt = input.AppliedAt
 	if input.SubmittedDocuments != nil {
 		app.SubmittedDocuments = input.SubmittedDocuments
+	}
+	if len(input.TagIDs) > 0 {
+		tags, err := s.tagRepo.FindByIDs(ctx, input.TagIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, tag := range tags {
+			if tag.UserID != userID {
+				return nil, domain.ErrForbidden
+			}
+			app.Tags = append(app.Tags, *tag)
+		}
 	}
 
 	event := domain.NewAutomaticEvent(
@@ -288,6 +304,24 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, userID strin
 	if input.SubmittedDocuments != nil {
 		app.SubmittedDocuments = input.SubmittedDocuments
 	}
+	if input.TagIDs != nil {
+		if len(input.TagIDs) == 0 {
+			app.Tags = []domain.Tag{}
+		} else {
+			tags, err := s.tagRepo.FindByIDs(ctx, input.TagIDs)
+			if err != nil {
+				return nil, err
+			}
+			var newTags []domain.Tag
+			for _, tag := range tags {
+				if tag.UserID != userID {
+					return nil, domain.ErrForbidden
+				}
+				newTags = append(newTags, *tag)
+			}
+			app.Tags = newTags
+		}
+	}
 	app.UpdatedAt = time.Now().UTC()
 
 	if input.Status != nil && *input.Status != app.Status {
@@ -342,4 +376,12 @@ func (s *ApplicationService) AddManualEvent(ctx context.Context, userID string, 
 		return nil, err
 	}
 	return event, nil
+}
+
+func (s *ApplicationService) GetApplicationStats(ctx context.Context, userID string, startDate, endDate *time.Time) (*domain.ApplicationStats, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	return s.appRepo.GetStatsByUserID(ctx, userID, startDate, endDate)
 }

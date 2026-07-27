@@ -17,6 +17,7 @@ type CreateApplicationRequest struct {
 	JobDescription     string                   `json:"job_description"`
 	Notes              string                   `json:"notes"`
 	AppliedAt          *time.Time               `json:"applied_at"`
+	TagIDs             []string                 `json:"tag_ids,omitempty"`
 }
 
 type UpdateApplicationRequest struct {
@@ -31,6 +32,7 @@ type UpdateApplicationRequest struct {
 	JobDescription     *string                   `json:"job_description"`
 	Notes              *string                   `json:"notes"`
 	AppliedAt          *time.Time                `json:"applied_at"`
+	TagIDs             []string                  `json:"tag_ids,omitempty"`
 }
 
 type CreateManualEventRequest struct {
@@ -44,4 +46,11 @@ type ListApplicationsResponse struct {
 
 type GroupedApplicationsResponse struct {
 	GroupedApplications map[domain.ApplicationStatus][]*domain.Application `json:"grouped_applications"`
+}
+
+type ApplicationStatsResponse struct {
+	TotalApplications       int                    `json:"total_applications"`
+	FunnelByStatus          map[string]int         `json:"funnel_by_status"`
+	ConversionRateInterview float64                `json:"conversion_rate_interview"`
+	TopTags                 []domain.TagCountStats `json:"top_tags"`
 }

@@ -9,7 +9,8 @@ type UserModel struct {
 	ID           string    `gorm:"type:uuid;primaryKey"`
 	Name         string    `gorm:"type:varchar(255);not null"`
 	Email        string    `gorm:"type:varchar(255);uniqueIndex; not null"`
-	PasswordHash string    `gorm:"type:varchar(255);not null"`
+	PasswordHash string    `gorm:"type:varchar(255)"`
+	GoogleID     string    `gorm:"type:varchar(255);uniqueIndex"`
 	CreatedAt    time.Time `gorm:"type:timestamp;not null"`
 }
 
@@ -23,6 +24,7 @@ func (m *UserModel) ToDomain() *domain.User {
 		Name:         m.Name,
 		Email:        m.Email,
 		PasswordHash: m.PasswordHash,
+		GoogleID:     m.GoogleID,
 		CreatedAt:    m.CreatedAt,
 	}
 }
@@ -33,6 +35,7 @@ func FromDomain(u *domain.User) *UserModel {
 		Name:         u.Name,
 		Email:        u.Email,
 		PasswordHash: u.PasswordHash,
+		GoogleID:     u.GoogleID,
 		CreatedAt:    u.CreatedAt,
 	}
 }

@@ -116,3 +116,37 @@ func (s *AuthService) generateToken(user *domain.User, expiresIn time.Duration) 
 	return token.SignedString([]byte(s.jwtSecret))
 }
 
+func (s *AuthService) GoogleLogin(ctx context.Context, email, name, googleID string) (*domain.User, string, error) {
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if user == nil {
+		user = domain.NewUser(
+			uuid.New().String(),
+			name,
+			email,
+			"",
+		)
+		user.GoogleID = googleID
+		err = s.userRepo.Create(ctx, user)
+		if err != nil {
+			return nil, "", err
+		}
+	} else if user.GoogleID == "" {
+		user.GoogleID = googleID
+		err = s.userRepo.Update(ctx, user)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	tokenString, err := s.generateToken(user, s.jwtExpiresIn)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return user, tokenString, nil
+}
+

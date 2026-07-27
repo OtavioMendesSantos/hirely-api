@@ -21,6 +21,11 @@ type Config struct {
 	JWTSecret    string        `env:"JWT_SECRET,required"`
 	JWTExpiresIn time.Duration `envDefault:"24h"`
 
+	// Google OAuth
+	GoogleClientID string `env:"GOOGLE_CLIENT_ID,required"`
+	GoogleSecretID string `env:"GOOGLE_SECRET_ID,required"`
+	FrontEndURL    string `env:"FRONT_END_URL,required"`
+
 	// Database
 	DB_HOST     string `env:"DB_HOST,required"`
 	DB_PORT     string `env:"DB_PORT,required"`

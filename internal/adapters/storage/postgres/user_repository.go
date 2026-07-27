@@ -55,3 +55,11 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*domain.User,
 
 	return model.ToDomain(), nil
 }
+
+// Update updates an existing user in the database.
+func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
+	model := FromDomain(user)
+
+	result := r.db.WithContext(ctx).Save(model)
+	return result.Error
+}

@@ -28,6 +28,11 @@ func (m *mockUserRepo) Create(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
+func (m *mockUserRepo) Update(ctx context.Context, user *domain.User) error {
+	m.users[user.Email] = user
+	return nil
+}
+
 func (m *mockUserRepo) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	u, ok := m.users[email]
 	if !ok {
