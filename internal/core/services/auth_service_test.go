@@ -42,6 +42,11 @@ func (m *mockUserRepositoryForAuthTest) FindByEmail(ctx context.Context, email s
 	return user, nil
 }
 
+func (m *mockUserRepositoryForAuthTest) Update(ctx context.Context, user *domain.User) error {
+	m.users[user.Email] = user
+	return nil
+}
+
 func (m *mockUserRepositoryForAuthTest) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	for _, u := range m.users {
 		if u.ID == id {

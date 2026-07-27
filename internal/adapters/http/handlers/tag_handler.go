@@ -120,7 +120,7 @@ func (h *TagHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	tagID := r.PathValue("tag_id")
 	err := h.tagService.DeleteTag(r.Context(), userID, tagID)
 	if err != nil {
-		if errors.Is(err, domain.ErrApplicationNotFound) {
+		if errors.Is(err, domain.ErrTagNotFound) {
 			dto.WriteError(w, http.StatusNotFound, "Tag not found", "NOT_FOUND")
 			return
 		}

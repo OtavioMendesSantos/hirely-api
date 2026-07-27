@@ -57,7 +57,7 @@ func (s *TagService) DeleteTag(ctx context.Context, userID, tagID string) error 
 		return err
 	}
 	if tag == nil {
-		return domain.ErrApplicationNotFound // Could be a specific ErrTagNotFound
+		return domain.ErrTagNotFound
 	}
 
 	if tag.UserID != userID {

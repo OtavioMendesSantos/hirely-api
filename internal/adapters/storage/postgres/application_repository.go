@@ -60,6 +60,7 @@ func (r *ApplicationRepository) FindByID(ctx context.Context, id string) (*domai
 		Preload("Events", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at asc")
 		}).
+		Preload("Tags").
 		Where("id = ?", id).
 		First(&model)
 
@@ -79,6 +80,7 @@ func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string,
 		Preload("Events", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at asc")
 		}).
+		Preload("Tags").
 		Where("user_id = ?", userID)
 
 	if search != "" {
@@ -106,6 +108,7 @@ func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, use
 		Preload("Events", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at asc")
 		}).
+		Preload("Tags").
 		Where("user_id = ?", userID)
 
 	if search != "" {

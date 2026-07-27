@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"hirely-api/internal/core/domain"
 )
@@ -68,6 +69,10 @@ func (m *mockAppRepo) UpdateStatus(ctx context.Context, app *domain.Application,
 	return nil
 }
 
+func (m *mockAppRepo) GetStatsByUserID(ctx context.Context, userID string, startDate, endDate *time.Time) (*domain.ApplicationStats, error) {
+	return &domain.ApplicationStats{}, nil
+}
+
 type mockEventRepo struct {
 	events map[string]*domain.Event
 }
@@ -94,7 +99,7 @@ func (m *mockEventRepo) GetByApplicationID(ctx context.Context, applicationID st
 func TestApplicationService_CreateAndGet_UserIsolation(t *testing.T) {
 	appRepo := newMockAppRepo()
 	eventRepo := newMockEventRepo()
-	service := NewApplicationService(appRepo, eventRepo)
+	service := NewApplicationService(appRepo, eventRepo, nil)
 
 	ctx := context.Background()
 
@@ -126,7 +131,7 @@ func TestApplicationService_CreateAndGet_UserIsolation(t *testing.T) {
 func TestApplicationService_UpdateStatus_TriggersEvent(t *testing.T) {
 	appRepo := newMockAppRepo()
 	eventRepo := newMockEventRepo()
-	service := NewApplicationService(appRepo, eventRepo)
+	service := NewApplicationService(appRepo, eventRepo, nil)
 
 	ctx := context.Background()
 	created, _ := service.CreateApplication(ctx, "user-1", CreateApplicationInput{
@@ -153,7 +158,7 @@ func TestApplicationService_UpdateStatus_TriggersEvent(t *testing.T) {
 func TestApplicationService_DeleteAndManualEvent(t *testing.T) {
 	appRepo := newMockAppRepo()
 	eventRepo := newMockEventRepo()
-	service := NewApplicationService(appRepo, eventRepo)
+	service := NewApplicationService(appRepo, eventRepo, nil)
 
 	ctx := context.Background()
 	app, _ := service.CreateApplication(ctx, "user-1", CreateApplicationInput{
@@ -188,7 +193,7 @@ func TestApplicationService_DeleteAndManualEvent(t *testing.T) {
 func TestApplicationService_ListApplicationsGroupedByStatus(t *testing.T) {
 	appRepo := newMockAppRepo()
 	eventRepo := newMockEventRepo()
-	service := NewApplicationService(appRepo, eventRepo)
+	service := NewApplicationService(appRepo, eventRepo, nil)
 
 	ctx := context.Background()
 	service.CreateApplication(ctx, "user-1", CreateApplicationInput{

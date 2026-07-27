@@ -74,8 +74,13 @@ func (r *TagRepository) ListByUserID(ctx context.Context, userID string) ([]*dom
 }
 
 func (r *TagRepository) Delete(ctx context.Context, id string) error {
-	result := r.db.WithContext(ctx).Where("id = ?", id).Delete(&TagModel{})
-	return result.Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("DELETE FROM application_tags WHERE tag_id = ?", id).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id = ?", id).Delete(&TagModel{})
+		return result.Error
+	})
 }
 
 var _ ports.TagRepository = (*TagRepository)(nil)
