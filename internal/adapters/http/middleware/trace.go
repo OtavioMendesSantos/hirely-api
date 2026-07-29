@@ -2,24 +2,25 @@ package middleware
 
 import (
 	"hirely-api/internal/adapters/logger"
-	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-func Trace(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		traceID := r.Header.Get("X-Request-ID")
+func Trace() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		traceID := c.GetHeader("X-Request-ID")
 		if traceID == "" {
-			traceID = r.Header.Get("traceparent")
+			traceID = c.GetHeader("traceparent")
 		}
 		if traceID == "" {
 			traceID = uuid.New().String()
 		}
 
-		ctx := logger.WithTraceID(r.Context(), traceID)
-		w.Header().Set("X-Trace-ID", traceID)
+		ctx := logger.WithTraceID(c.Request.Context(), traceID)
+		c.Request = c.Request.WithContext(ctx)
+		c.Header("X-Trace-ID", traceID)
 
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+		c.Next()
+	}
 }

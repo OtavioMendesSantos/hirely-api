@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"hirely-api/internal/adapters/http/dto"
-	"hirely-api/internal/adapters/http/middleware"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
+
+	"github.com/gin-gonic/gin"
 )
 
 type mockAppRepoForHandlerTest struct {
@@ -112,11 +113,32 @@ func (m *mockEventRepoForHandlerTest) GetByApplicationID(ctx context.Context, ap
 	return list, nil
 }
 
+func setupAppRouter(appService *services.ApplicationService, userID string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	handler := NewApplicationHandler(appService)
+	r := gin.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", userID)
+	})
+
+	r.POST("/v1/users/:user_id/applications", handler.Create)
+	r.GET("/v1/users/:user_id/applications", handler.List)
+	r.GET("/v1/users/:user_id/applications/grouped-by-status", handler.GroupedByStatus)
+	r.GET("/v1/users/:user_id/applications/:application_id", handler.GetByID)
+	r.PATCH("/v1/users/:user_id/applications/:application_id", handler.Update)
+	r.DELETE("/v1/users/:user_id/applications/:application_id", handler.Delete)
+	r.POST("/v1/users/:user_id/applications/:application_id/events", handler.AddEvent)
+	r.GET("/v1/users/:user_id/applications/stats", handler.GetStats)
+
+	return r
+}
+
 func TestApplicationHandler_CreateAndList_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
 	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
-	handler := NewApplicationHandler(appService)
+	r := setupAppRouter(appService, "user-123")
 
 	payload := dto.CreateApplicationRequest{
 		CompanyName: "Hirely Corp",
@@ -128,11 +150,10 @@ func TestApplicationHandler_CreateAndList_Success(t *testing.T) {
 	body, _ := json.Marshal(payload)
 
 	req := httptest.NewRequest("POST", "/v1/users/user-123/applications", bytes.NewReader(body))
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
-	req.SetPathValue("user_id", "user-123")
-
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	handler.Create(rec, req)
+
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
@@ -148,11 +169,8 @@ func TestApplicationHandler_CreateAndList_Success(t *testing.T) {
 
 	// Test List
 	listReq := httptest.NewRequest("GET", "/v1/users/user-123/applications", nil)
-	listReq = listReq.WithContext(middleware.WithUserID(listReq.Context(), "user-123"))
-	listReq.SetPathValue("user_id", "user-123")
-
 	listRec := httptest.NewRecorder()
-	handler.List(listRec, listReq)
+	r.ServeHTTP(listRec, listReq)
 
 	if listRec.Code != http.StatusOK {
 		t.Fatalf("expected status 200 on list, got %d", listRec.Code)
@@ -171,15 +189,11 @@ func TestApplicationHandler_UserIsolation_Forbidden(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
 	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
-	handler := NewApplicationHandler(appService)
+	r := setupAppRouter(appService, "user-999") // Authenticated as user-999
 
 	req := httptest.NewRequest("GET", "/v1/users/user-123/applications", nil)
-	// Authenticated as user-999 trying to access user-123 path
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-999"))
-	req.SetPathValue("user_id", "user-123")
-
 	rec := httptest.NewRecorder()
-	handler.List(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected status 403 Forbidden, got %d: %s", rec.Code, rec.Body.String())
@@ -190,7 +204,7 @@ func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
 	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
-	handler := NewApplicationHandler(appService)
+	r := setupAppRouter(appService, "user-123")
 
 	ctx := context.Background()
 	app, _ := appService.CreateApplication(ctx, "user-123", services.CreateApplicationInput{
@@ -201,12 +215,8 @@ func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 
 	// GetByID
 	getReq := httptest.NewRequest("GET", "/v1/users/user-123/applications/"+app.ID, nil)
-	getReq = getReq.WithContext(middleware.WithUserID(getReq.Context(), "user-123"))
-	getReq.SetPathValue("user_id", "user-123")
-	getReq.SetPathValue("application_id", app.ID)
-
 	getRec := httptest.NewRecorder()
-	handler.GetByID(getRec, getReq)
+	r.ServeHTTP(getRec, getReq)
 
 	if getRec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", getRec.Code)
@@ -218,12 +228,9 @@ func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 	updateBody, _ := json.Marshal(updatePayload)
 
 	updateReq := httptest.NewRequest("PATCH", "/v1/users/user-123/applications/"+app.ID, bytes.NewReader(updateBody))
-	updateReq = updateReq.WithContext(middleware.WithUserID(updateReq.Context(), "user-123"))
-	updateReq.SetPathValue("user_id", "user-123")
-	updateReq.SetPathValue("application_id", app.ID)
-
+	updateReq.Header.Set("Content-Type", "application/json")
 	updateRec := httptest.NewRecorder()
-	handler.Update(updateRec, updateReq)
+	r.ServeHTTP(updateRec, updateReq)
 
 	if updateRec.Code != http.StatusOK {
 		t.Fatalf("expected status 200 on patch, got %d: %s", updateRec.Code, updateRec.Body.String())
@@ -234,12 +241,9 @@ func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 	eventBody, _ := json.Marshal(eventPayload)
 
 	eventReq := httptest.NewRequest("POST", "/v1/users/user-123/applications/"+app.ID+"/events", bytes.NewReader(eventBody))
-	eventReq = eventReq.WithContext(middleware.WithUserID(eventReq.Context(), "user-123"))
-	eventReq.SetPathValue("user_id", "user-123")
-	eventReq.SetPathValue("application_id", app.ID)
-
+	eventReq.Header.Set("Content-Type", "application/json")
 	eventRec := httptest.NewRecorder()
-	handler.AddEvent(eventRec, eventReq)
+	r.ServeHTTP(eventRec, eventReq)
 
 	if eventRec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201 on add event, got %d: %s", eventRec.Code, eventRec.Body.String())
@@ -247,12 +251,8 @@ func TestApplicationHandler_GetUpdateDeleteAndEvent_Success(t *testing.T) {
 
 	// Delete
 	deleteReq := httptest.NewRequest("DELETE", "/v1/users/user-123/applications/"+app.ID, nil)
-	deleteReq = deleteReq.WithContext(middleware.WithUserID(deleteReq.Context(), "user-123"))
-	deleteReq.SetPathValue("user_id", "user-123")
-	deleteReq.SetPathValue("application_id", app.ID)
-
 	deleteRec := httptest.NewRecorder()
-	handler.Delete(deleteRec, deleteReq)
+	r.ServeHTTP(deleteRec, deleteReq)
 
 	if deleteRec.Code != http.StatusNoContent {
 		t.Fatalf("expected status 204 on delete, got %d: %s", deleteRec.Code, deleteRec.Body.String())
@@ -263,7 +263,7 @@ func TestApplicationHandler_GroupedByStatus_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
 	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
-	handler := NewApplicationHandler(appService)
+	r := setupAppRouter(appService, "user-123")
 
 	ctx := context.Background()
 	appService.CreateApplication(ctx, "user-123", services.CreateApplicationInput{
@@ -278,11 +278,8 @@ func TestApplicationHandler_GroupedByStatus_Success(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("GET", "/v1/users/user-123/applications/grouped-by-status", nil)
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
-	req.SetPathValue("user_id", "user-123")
-
 	rec := httptest.NewRecorder()
-	handler.GroupedByStatus(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -308,7 +305,7 @@ func TestApplicationHandler_Ordering_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
 	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
-	handler := NewApplicationHandler(appService)
+	r := setupAppRouter(appService, "user-123")
 
 	ctx := context.Background()
 	appService.CreateApplication(ctx, "user-123", services.CreateApplicationInput{
@@ -319,11 +316,8 @@ func TestApplicationHandler_Ordering_Success(t *testing.T) {
 
 	// Test List with order_by
 	req := httptest.NewRequest("GET", "/v1/users/user-123/applications?order_by=job_title&order=asc", nil)
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
-	req.SetPathValue("user_id", "user-123")
-
 	rec := httptest.NewRecorder()
-	handler.List(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -331,11 +325,8 @@ func TestApplicationHandler_Ordering_Success(t *testing.T) {
 
 	// Test GroupedByStatus with order_by
 	reqGrouped := httptest.NewRequest("GET", "/v1/users/user-123/applications/grouped-by-status?order_by=applied_at&order=desc", nil)
-	reqGrouped = reqGrouped.WithContext(middleware.WithUserID(reqGrouped.Context(), "user-123"))
-	reqGrouped.SetPathValue("user_id", "user-123")
-
 	recGrouped := httptest.NewRecorder()
-	handler.GroupedByStatus(recGrouped, reqGrouped)
+	r.ServeHTTP(recGrouped, reqGrouped)
 
 	if recGrouped.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", recGrouped.Code, recGrouped.Body.String())
@@ -346,14 +337,11 @@ func TestApplicationHandler_GetStats_Success(t *testing.T) {
 	appRepo := newMockAppRepoForHandlerTest()
 	eventRepo := newMockEventRepoForHandlerTest()
 	appService := services.NewApplicationService(appRepo, eventRepo, newMockTagRepo())
-	handler := NewApplicationHandler(appService)
+	r := setupAppRouter(appService, "user-123")
 
 	req := httptest.NewRequest("GET", "/v1/users/user-123/applications/stats?start_date=2024-01-01&end_date=2024-12-31", nil)
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
-	req.SetPathValue("user_id", "user-123")
-
 	rec := httptest.NewRecorder()
-	handler.GetStats(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -32,40 +33,34 @@ func NewOAuthHandler(authService *services.AuthService, clientID, clientSecret, 
 	}
 }
 
-func (h *OAuthHandler) GoogleAuthURL(w http.ResponseWriter, r *http.Request) {
+func (h *OAuthHandler) GoogleAuthURL(c *gin.Context) {
 	url := h.oauthConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"url": url})
+	c.JSON(http.StatusOK, gin.H{"url": url})
 }
 
 type OAuthLoginRequest struct {
-	Code string `json:"code"`
+	Code string `json:"code" binding:"required"`
 }
 
-func (h *OAuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
+func (h *OAuthHandler) GoogleLogin(c *gin.Context) {
 	var req OAuthLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		dto.WriteError(w, http.StatusBadRequest, "Invalid JSON payload", "INVALID_ARGUMENT")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		dto.HandleValidationError(c, err)
 		return
 	}
 
-	if req.Code == "" {
-		dto.WriteError(w, http.StatusBadRequest, "Code is required", "INVALID_ARGUMENT")
-		return
-	}
-
-	token, err := h.oauthConfig.Exchange(r.Context(), req.Code)
+	token, err := h.oauthConfig.Exchange(c.Request.Context(), req.Code)
 	if err != nil {
 		slog.Error("Failed to exchange token", slog.String("error", err.Error()))
-		dto.WriteError(w, http.StatusUnauthorized, "Failed to exchange token", "UNAUTHENTICATED")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Failed to exchange token", "status": "UNAUTHENTICATED"}})
 		return
 	}
 
-	client := h.oauthConfig.Client(r.Context(), token)
+	client := h.oauthConfig.Client(c.Request.Context(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
 		slog.Error("Failed to get user info", slog.String("error", err.Error()))
-		dto.WriteError(w, http.StatusInternalServerError, "Failed to get user info", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Failed to get user info", "status": "INTERNAL"}})
 		return
 	}
 	defer resp.Body.Close()
@@ -77,20 +72,18 @@ func (h *OAuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
 		slog.Error("Failed to decode user info", slog.String("error", err.Error()))
-		dto.WriteError(w, http.StatusInternalServerError, "Failed to decode user info", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Failed to decode user info", "status": "INTERNAL"}})
 		return
 	}
 
-	user, jwtToken, err := h.authService.GoogleLogin(r.Context(), userInfo.Email, userInfo.Name, userInfo.ID)
+	user, jwtToken, err := h.authService.GoogleLogin(c.Request.Context(), userInfo.Email, userInfo.Name, userInfo.ID)
 	if err != nil {
 		slog.Error("Failed to login with Google", slog.String("error", err.Error()))
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(dto.AuthResponse{
+	c.JSON(http.StatusOK, dto.AuthResponse{
 		Token: jwtToken,
 		User:  user,
 	})

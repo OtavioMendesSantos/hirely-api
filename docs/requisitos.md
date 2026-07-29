@@ -55,7 +55,7 @@ hirely-api/
 │   │   └── services/               # Implementação das regras de negócio e casos de uso
 │   └── adapters/                   # Infraestrutura e Transporte (Hexágono Externo)
 │       ├── http/                   # Camada REST (Google API Design / AIPs)
-│       │   ├── router.go           # Roteador centralizado (Mux nativo Go 1.22+)
+│       │   ├── router.go           # Roteador centralizado (Gin Framework)
 │       │   ├── middleware/         # Interceptadores HTTP
 │       │   │   ├── auth.go         # Validação de JWT Bearer Token e verificação de UserID
 │       │   │   └── cors.go         # Configuração de CORS para SPA frontend
@@ -211,9 +211,9 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 | ----------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------- |
 | `GET`       | `/v1/health`                                               | Verifica integridade básica e timestamp em UTC do servidor.            | Pública                    |
 | `POST`      | `/v1/users`                                                | Registro de usuário (padrão `Create` resource do Google API Design).   | Pública                    |
-| `POST`      | `/v1/users:login`                                          | Login com Email, Senha e suporte a `rememberMe` (30 dias ou 24h).      | Pública                    |
-| `GET`       | `/v1/users:oauthUrl`                                       | Retorna URL de autorização OAuth 2.0 (`google`).                       | Pública                    |
-| `POST`      | `/v1/users:oauthLogin`                                     | Recebe código OAuth (`code`), autentica e retorna token.               | Pública                    |
+| `POST`      | `/v1/auth/login`                                           | Login com Email, Senha e suporte a `rememberMe` (30 dias ou 24h).      | Pública                    |
+| `GET`       | `/v1/auth/google/url`                                      | Retorna URL de autorização OAuth 2.0 (`google`).                       | Pública                    |
+| `POST`      | `/v1/auth/google/login`                                    | Recebe código OAuth (`code`), autentica e retorna token.               | Pública                    |
 | `GET`       | `/v1/users/me`                                             | Retorna informações do usuário autenticado.                            | JWT                        |
 | `POST`      | `/v1/users/{user_id}/applications`                         | Cria uma nova candidatura para o usuário.                              | JWT (`user_id` compatível) |
 | `GET`       | `/v1/users/{user_id}/applications`                         | Lista candidaturas com suporte a filtros e paginação.                  | JWT                        |
@@ -221,7 +221,7 @@ A API do Hirely implementa endpoints orientados a recursos em inglês, com padro
 | `GET`       | `/v1/users/{user_id}/applications/{application_id}`        | Retorna detalhes de uma candidatura (incluindo tags e timeline).       | JWT                        |
 | `PATCH`     | `/v1/users/{user_id}/applications/{application_id}`        | Atualiza status ou dados da candidatura (`job_title`, `status`, etc.). | JWT                        |
 | `DELETE`    | `/v1/users/{user_id}/applications/{application_id}`        | Remove ou arquiva uma candidatura.                                     | JWT                        |
-| `GET`       | `/v1/users/{user_id}/applications:stats`                   | Retorna métricas agregadas (funil por status, contagem por tag).       | JWT                        |
+| `GET`       | `/v1/users/{user_id}/applications/stats`                   | Retorna métricas agregadas (funil por status, contagem por tag).       | JWT                        |
 | `POST`      | `/v1/users/{user_id}/applications/{application_id}/events` | Adiciona nota/evento manual na timeline da candidatura.                | JWT                        |
 | `POST`      | `/v1/users/{user_id}/tags`                                 | Cria uma tag customizada.                                              | JWT                        |
 | `GET`       | `/v1/users/{user_id}/tags`                                 | Lista todas as tags customizadas do usuário.                           | JWT                        |
@@ -245,7 +245,7 @@ Os endpoints de listagem aceitam os seguintes parâmetros de consulta (_query pa
 - `page_size`: Quantidade de itens por página (padrão: `20`, máximo: `100` — *aplicável à listagem paginada*).
 - `page_token`: Token para paginação (`next_page_token` retornado pela chamada anterior — *aplicável à listagem paginada*).
 
-### 4.3 Parâmetros de Filtro de Tempo (`GET /v1/users/{user_id}/applications:stats`)
+### 4.3 Parâmetros de Filtro de Tempo (`GET /v1/users/{user_id}/applications/stats`)
 
 O endpoint de métricas e agregações aceita os seguintes parâmetros de consulta opcionais para limitar os dados por um espaço de tempo (intervalo de criação da candidatura):
 
@@ -280,7 +280,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
 }
 ```
 
-#### Requisição de Login Tradicional (`LoginRequest` - `POST /v1/users:login`)
+#### Requisição de Login Tradicional (`LoginRequest` - `POST /v1/auth/login`)
 
 ```json
 {
@@ -290,7 +290,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
 }
 ```
 
-#### Resposta de Login Tradicional (`AuthResponse` - `POST /v1/users:login`)
+#### Resposta de Login Tradicional (`AuthResponse` - `POST /v1/auth/login`)
 
 ```json
 {
@@ -304,7 +304,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
 }
 ```
 
-#### Requisição de Callback Social (`OAuthCallbackRequest` - `POST /v1/users:oauthLogin`)
+#### Requisição de Callback Social (`OAuthCallbackRequest` - `POST /v1/auth/google/login`)
 
 ```json
 {
@@ -313,7 +313,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
 }
 ```
 
-#### Resposta de Autenticação Social / OAuth (`AuthResponse` - `POST /v1/users:oauthLogin`)
+#### Resposta de Autenticação Social / OAuth (`AuthResponse` - `POST /v1/auth/google/login`)
 
 ```json
 {

@@ -3,34 +3,53 @@ package http
 import (
 	"hirely-api/internal/adapters/http/handlers"
 	"hirely-api/internal/adapters/http/middleware"
-	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(authHandler *handlers.AuthHandler, oauthHandler *handlers.OAuthHandler, userHandler *handlers.UserHandler, appHandler *handlers.ApplicationHandler, tagHandler *handlers.TagHandler, healthHandler *handlers.HealthHandler, jwtSecret string) http.Handler {
-	mux := http.NewServeMux()
+func SetupRoutes(
+	authHandler *handlers.AuthHandler,
+	oauthHandler *handlers.OAuthHandler,
+	userHandler *handlers.UserHandler,
+	appHandler *handlers.ApplicationHandler,
+	tagHandler *handlers.TagHandler,
+	healthHandler *handlers.HealthHandler,
+	jwtSecret string,
+) *gin.Engine {
+	r := gin.New()
 
-	mux.HandleFunc("GET /v1/health", healthHandler.Check)
-	mux.HandleFunc("POST /v1/users", authHandler.Register)
-	mux.HandleFunc("POST /v1/users:login", authHandler.Login)
+	r.Use(middleware.Trace())
+	r.Use(middleware.CORS())
 
-	mux.HandleFunc("GET /v1/users:oauthUrl", oauthHandler.GoogleAuthURL)
-	mux.HandleFunc("POST /v1/users:oauthLogin", oauthHandler.GoogleLogin)
+	v1 := r.Group("/v1")
+	{
+		r.GET("/ping", healthHandler.Ping)
+		v1.GET("/health", healthHandler.Check)
+		v1.POST("/users", authHandler.Register)
+		v1.POST("/auth/login", authHandler.Login)
 
-	authGuard := middleware.Auth(jwtSecret)
-	mux.Handle("GET /v1/users/me", authGuard(http.HandlerFunc(userHandler.GetMe)))
+		v1.GET("/auth/google/url", oauthHandler.GoogleAuthURL)
+		v1.POST("/auth/google/login", oauthHandler.GoogleLogin)
 
-	mux.Handle("POST /v1/users/{user_id}/applications", authGuard(http.HandlerFunc(appHandler.Create)))
-	mux.Handle("GET /v1/users/{user_id}/applications", authGuard(http.HandlerFunc(appHandler.List)))
-	mux.Handle("GET /v1/users/{user_id}/applications/grouped-by-status", authGuard(http.HandlerFunc(appHandler.GroupedByStatus)))
-	mux.Handle("GET /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.GetByID)))
-	mux.Handle("PATCH /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.Update)))
-	mux.Handle("DELETE /v1/users/{user_id}/applications/{application_id}", authGuard(http.HandlerFunc(appHandler.Delete)))
-	mux.Handle("POST /v1/users/{user_id}/applications/{application_id}/events", authGuard(http.HandlerFunc(appHandler.AddEvent)))
-	mux.Handle("GET /v1/users/{user_id}/applications:stats", authGuard(http.HandlerFunc(appHandler.GetStats)))
+		auth := v1.Group("/")
+		auth.Use(middleware.Auth(jwtSecret))
+		{
+			auth.GET("/users/me", userHandler.GetMe)
 
-	mux.Handle("POST /v1/users/{user_id}/tags", authGuard(http.HandlerFunc(tagHandler.Create)))
-	mux.Handle("GET /v1/users/{user_id}/tags", authGuard(http.HandlerFunc(tagHandler.List)))
-	mux.Handle("DELETE /v1/users/{user_id}/tags/{tag_id}", authGuard(http.HandlerFunc(tagHandler.Delete)))
+			auth.POST("/users/:user_id/applications", appHandler.Create)
+			auth.GET("/users/:user_id/applications", appHandler.List)
+			auth.GET("/users/:user_id/applications/grouped-by-status", appHandler.GroupedByStatus)
+			auth.GET("/users/:user_id/applications/:application_id", appHandler.GetByID)
+			auth.PATCH("/users/:user_id/applications/:application_id", appHandler.Update)
+			auth.DELETE("/users/:user_id/applications/:application_id", appHandler.Delete)
+			auth.POST("/users/:user_id/applications/:application_id/events", appHandler.AddEvent)
+			auth.GET("/users/:user_id/applications/stats", appHandler.GetStats)
 
-	return middleware.Trace(middleware.CORS(mux))
+			auth.POST("/users/:user_id/tags", tagHandler.Create)
+			auth.GET("/users/:user_id/tags", tagHandler.List)
+			auth.DELETE("/users/:user_id/tags/:tag_id", tagHandler.Delete)
+		}
+	}
+
+	return r
 }

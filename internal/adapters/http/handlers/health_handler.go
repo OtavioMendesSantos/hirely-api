@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type HealthHandler struct{}
@@ -18,15 +19,16 @@ type HealthResponse struct {
 	Timestamp string `json:"timestamp"`
 }
 
-func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
+func (h *HealthHandler) Check(c *gin.Context) {
 	response := HealthResponse{
 		Status:    "ok",
 		Service:   "hirely-api",
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *HealthHandler) Ping(c *gin.Context) {
+	c.String(http.StatusOK, "pong")
 }

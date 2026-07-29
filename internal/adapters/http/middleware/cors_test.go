@@ -4,20 +4,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestCORS_PreflightOptions(t *testing.T) {
-	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(CORS())
+	r.Any("/v1/users:login", func(c *gin.Context) {
+		c.Status(http.StatusOK)
 	})
-
-	handler := CORS(dummyHandler)
 
 	req := httptest.NewRequest("OPTIONS", "/v1/users:login", nil)
 	req.Header.Set("Origin", "http://localhost:4200")
 	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected status 204 No Content for OPTIONS preflight, got %d", rec.Code)
@@ -32,16 +35,17 @@ func TestCORS_PreflightOptions(t *testing.T) {
 }
 
 func TestCORS_PostRequest(t *testing.T) {
-	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(CORS())
+	r.POST("/v1/users:login", func(c *gin.Context) {
+		c.Status(http.StatusOK)
 	})
-
-	handler := CORS(dummyHandler)
 
 	req := httptest.NewRequest("POST", "/v1/users:login", nil)
 	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200 from wrapped handler, got %d", rec.Code)

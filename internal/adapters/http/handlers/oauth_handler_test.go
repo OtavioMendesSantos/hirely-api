@@ -10,17 +10,21 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestOAuthHandler_GoogleAuthURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepo()
 	authService := services.NewAuthService(repo, "secret", time.Hour)
 	handler := NewOAuthHandler(authService, "client-id", "client-secret", "http://localhost/callback")
 
-	req := httptest.NewRequest("GET", "/v1/auth/google/url", nil)
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("GET", "/v1/auth/google/url", nil)
 
-	handler.GoogleAuthURL(rec, req)
+	handler.GoogleAuthURL(c)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -42,14 +46,17 @@ func TestOAuthHandler_GoogleAuthURL(t *testing.T) {
 }
 
 func TestOAuthHandler_GoogleLogin_InvalidJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepo()
 	authService := services.NewAuthService(repo, "secret", time.Hour)
 	handler := NewOAuthHandler(authService, "client-id", "client-secret", "http://localhost/callback")
 
-	req := httptest.NewRequest("POST", "/v1/auth/google/login", bytes.NewBuffer([]byte("{invalid-json")))
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("POST", "/v1/auth/google/login", bytes.NewBuffer([]byte("{invalid-json")))
+	c.Request.Header.Set("Content-Type", "application/json")
 
-	handler.GoogleLogin(rec, req)
+	handler.GoogleLogin(c)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", rec.Code)
@@ -57,6 +64,7 @@ func TestOAuthHandler_GoogleLogin_InvalidJSON(t *testing.T) {
 }
 
 func TestOAuthHandler_GoogleLogin_MissingCode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepo()
 	authService := services.NewAuthService(repo, "secret", time.Hour)
 	handler := NewOAuthHandler(authService, "client-id", "client-secret", "http://localhost/callback")
@@ -66,16 +74,18 @@ func TestOAuthHandler_GoogleLogin_MissingCode(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest("POST", "/v1/auth/google/login", bytes.NewBuffer(body))
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("POST", "/v1/auth/google/login", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
 
-	handler.GoogleLogin(rec, req)
+	handler.GoogleLogin(c)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", rec.Code)
 	}
-    
-    var errResp dto.ErrorResponse
+
+	var errResp dto.ErrorResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &errResp); err != nil {
 		t.Fatalf("failed to unmarshal error response: %v", err)
 	}

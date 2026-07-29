@@ -1,15 +1,14 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
-	"hirely-api/internal/adapters/http/dto"
-	"hirely-api/internal/adapters/http/middleware"
 	"hirely-api/internal/adapters/logger"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
 	"log/slog"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UserHandler struct {
@@ -22,41 +21,39 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 	}
 }
 
-func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
+func (h *UserHandler) GetMe(c *gin.Context) {
+	userID := c.GetString("userID")
 	if userID == "" {
 		slog.Warn("Unauthorized GetMe attempt: missing userID in context",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "GetMe"),
 		)
-		dto.WriteError(w, http.StatusUnauthorized, "Authentication required", "UNAUTHENTICATED")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Authentication required", "status": "UNAUTHENTICATED"}})
 		return
 	}
 
-	user, err := h.userService.GetUserByID(r.Context(), userID)
+	user, err := h.userService.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
-			dto.WriteError(w, http.StatusNotFound, "User not found", "NOT_FOUND")
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "User not found", "status": "NOT_FOUND"}})
 			return
 		}
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid user ID", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid user ID", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 
 		slog.Error("Error retrieving user profile",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "GetMe"),
 			slog.String("error", err.Error()),
 			slog.Any("context", map[string]string{
 				"userId": userID,
 			}),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(user)
+	c.JSON(http.StatusOK, user)
 }

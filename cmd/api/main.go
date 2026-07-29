@@ -16,7 +16,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -84,11 +84,11 @@ func initDB(cfg *config.Config) *gorm.DB {
 	return db
 }
 
-func startHTTPServer(cfg *config.Config, handler http.Handler) {
+func startHTTPServer(cfg *config.Config, handler *gin.Engine) {
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      handler,
+		Handler:      handler.Handler(),
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,

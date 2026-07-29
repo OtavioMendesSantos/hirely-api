@@ -1,15 +1,15 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"hirely-api/internal/adapters/http/dto"
-	"hirely-api/internal/adapters/http/middleware"
 	"hirely-api/internal/adapters/logger"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
 	"log/slog"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type TagHandler struct {
@@ -22,83 +22,81 @@ func NewTagHandler(tagService *services.TagService) *TagHandler {
 	}
 }
 
-func (h *TagHandler) checkIsolation(w http.ResponseWriter, r *http.Request) (string, bool) {
-	authUserID := middleware.GetUserID(r.Context())
+func (h *TagHandler) checkIsolation(c *gin.Context) (string, bool) {
+	authUserID := c.GetString("userID")
 	if authUserID == "" {
 		slog.Warn("Unauthorized tag request: missing userID in context",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
-			slog.String("operation", r.Method+" "+r.URL.Path),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
+			slog.String("operation", c.Request.Method+" "+c.Request.URL.Path),
 		)
-		dto.WriteError(w, http.StatusUnauthorized, "Authentication required", "UNAUTHENTICATED")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Authentication required", "status": "UNAUTHENTICATED"}})
 		return "", false
 	}
 
-	targetUserID := r.PathValue("user_id")
+	targetUserID := c.Param("user_id")
 	if targetUserID == "" || targetUserID != authUserID {
 		slog.Warn("Permission denied: target user_id does not match authenticated user",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
-			slog.String("operation", r.Method+" "+r.URL.Path),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
+			slog.String("operation", c.Request.Method+" "+c.Request.URL.Path),
 			slog.String("authUserId", authUserID),
 			slog.String("targetUserId", targetUserID),
 		)
-		dto.WriteError(w, http.StatusForbidden, "Permission denied: user_id mismatch", "PERMISSION_DENIED")
+		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "Permission denied: user_id mismatch", "status": "PERMISSION_DENIED"}})
 		return "", false
 	}
 
 	return authUserID, true
 }
 
-func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *TagHandler) Create(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
 	var req dto.CreateTagRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		slog.Warn("Failed to decode tag create request",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "CreateTag"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusBadRequest, "Invalid JSON payload", "INVALID_ARGUMENT")
+		dto.HandleValidationError(c, err)
 		return
 	}
 
-	tag, err := h.tagService.CreateTag(r.Context(), userID, req.Name, req.ColorHex)
+	tag, err := h.tagService.CreateTag(c.Request.Context(), userID, req.Name, req.ColorHex)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid tag data: name and color_hex are required", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid tag data: name and color_hex are required", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to create tag",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "CreateTag"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(tag)
+	c.JSON(http.StatusCreated, tag)
 }
 
-func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *TagHandler) List(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
-	tags, err := h.tagService.ListTags(r.Context(), userID)
+	tags, err := h.tagService.ListTags(c.Request.Context(), userID)
 	if err != nil {
 		slog.Error("Failed to list tags",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "ListTags"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
@@ -106,40 +104,38 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 		Tags: tags,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *TagHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *TagHandler) Delete(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
-	tagID := r.PathValue("tag_id")
-	err := h.tagService.DeleteTag(r.Context(), userID, tagID)
+	tagID := c.Param("tag_id")
+	err := h.tagService.DeleteTag(c.Request.Context(), userID, tagID)
 	if err != nil {
 		if errors.Is(err, domain.ErrTagNotFound) {
-			dto.WriteError(w, http.StatusNotFound, "Tag not found", "NOT_FOUND")
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Tag not found", "status": "NOT_FOUND"}})
 			return
 		}
 		if errors.Is(err, domain.ErrForbidden) {
-			dto.WriteError(w, http.StatusForbidden, "Permission denied", "PERMISSION_DENIED")
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "Permission denied", "status": "PERMISSION_DENIED"}})
 			return
 		}
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid tag ID", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid tag ID", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to delete tag",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "DeleteTag"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }

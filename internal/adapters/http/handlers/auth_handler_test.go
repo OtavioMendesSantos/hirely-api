@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type mockUserRepo struct {
@@ -51,6 +53,7 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id string) (*domain.User, e
 }
 
 func TestAuthHandler_Register_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepo()
 	authService := services.NewAuthService(repo, "secret", time.Hour)
 	handler := NewAuthHandler(authService)
@@ -62,10 +65,12 @@ func TestAuthHandler_Register_Success(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest("POST", "/v1/users", bytes.NewBuffer(body))
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("POST", "/v1/users", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
 
-	handler.Register(rec, req)
+	handler.Register(c)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", rec.Code, rec.Body.String())
@@ -85,6 +90,7 @@ func TestAuthHandler_Register_Success(t *testing.T) {
 }
 
 func TestAuthHandler_Register_ValidationFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepo()
 	authService := services.NewAuthService(repo, "secret", time.Hour)
 	handler := NewAuthHandler(authService)
@@ -96,10 +102,12 @@ func TestAuthHandler_Register_ValidationFailure(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest("POST", "/v1/users", bytes.NewBuffer(body))
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("POST", "/v1/users", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
 
-	handler.Register(rec, req)
+	handler.Register(c)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", rec.Code)
@@ -115,6 +123,7 @@ func TestAuthHandler_Register_ValidationFailure(t *testing.T) {
 }
 
 func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepo()
 	authService := services.NewAuthService(repo, "secret", time.Hour)
 	handler := NewAuthHandler(authService)
@@ -125,10 +134,12 @@ func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest("POST", "/v1/users:login", bytes.NewBuffer(body))
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
 
-	handler.Login(rec, req)
+	handler.Login(c)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d: %s", rec.Code, rec.Body.String())
@@ -144,6 +155,7 @@ func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
 }
 
 func TestAuthHandler_Login_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepo()
 	authService := services.NewAuthService(repo, "secret", time.Hour)
 	handler := NewAuthHandler(authService)
@@ -159,10 +171,12 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest("POST", "/v1/users:login", bytes.NewBuffer(body))
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(body))
+	c.Request.Header.Set("Content-Type", "application/json")
 
-	handler.Login(rec, req)
+	handler.Login(c)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())

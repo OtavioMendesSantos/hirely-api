@@ -2,15 +2,16 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"hirely-api/internal/adapters/http/dto"
-	"hirely-api/internal/adapters/http/middleware"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"context"
+
+	"github.com/gin-gonic/gin"
 )
 
 type mockTagRepo struct {
@@ -60,21 +61,28 @@ func (m *mockTagRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func setupTagRouter(repo *mockTagRepo) *http.ServeMux {
+func setupTagRouter(repo *mockTagRepo, userID string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
 	svc := services.NewTagService(repo)
 	handler := NewTagHandler(svc)
-	mux := http.NewServeMux()
-	
-	mux.HandleFunc("POST /users/{user_id}/tags", handler.Create)
-	mux.HandleFunc("GET /users/{user_id}/tags", handler.List)
-	mux.HandleFunc("DELETE /users/{user_id}/tags/{tag_id}", handler.Delete)
-	
-	return mux
+	r := gin.New()
+
+	r.Use(func(c *gin.Context) {
+		if userID != "" {
+			c.Set("userID", userID)
+		}
+	})
+
+	r.POST("/users/:user_id/tags", handler.Create)
+	r.GET("/users/:user_id/tags", handler.List)
+	r.DELETE("/users/:user_id/tags/:tag_id", handler.Delete)
+
+	return r
 }
 
 func TestTagHandler_Create_Success(t *testing.T) {
 	repo := newMockTagRepo()
-	mux := setupTagRouter(repo)
+	r := setupTagRouter(repo, "user-123")
 
 	payload := map[string]string{
 		"name":      "Backend",
@@ -83,10 +91,10 @@ func TestTagHandler_Create_Success(t *testing.T) {
 	body, _ := json.Marshal(payload)
 
 	req := httptest.NewRequest("POST", "/users/user-123/tags", bytes.NewBuffer(body))
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d", rec.Code)
@@ -103,13 +111,13 @@ func TestTagHandler_Create_Success(t *testing.T) {
 
 func TestTagHandler_Create_MismatchUser(t *testing.T) {
 	repo := newMockTagRepo()
-	mux := setupTagRouter(repo)
+	r := setupTagRouter(repo, "other-user")
 
 	req := httptest.NewRequest("POST", "/users/user-123/tags", bytes.NewBuffer([]byte(`{}`)))
-	req = req.WithContext(middleware.WithUserID(req.Context(), "other-user"))
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected status 403, got %d", rec.Code)
@@ -121,14 +129,13 @@ func TestTagHandler_List_Success(t *testing.T) {
 	repo.tags["tag-1"] = domain.NewTag("tag-1", "user-123", "Tag1", "#111111")
 	repo.tags["tag-2"] = domain.NewTag("tag-2", "user-123", "Tag2", "#222222")
 	repo.tags["tag-3"] = domain.NewTag("tag-3", "other-user", "Tag3", "#333333")
-	
-	mux := setupTagRouter(repo)
+
+	r := setupTagRouter(repo, "user-123")
 
 	req := httptest.NewRequest("GET", "/users/user-123/tags", nil)
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
 	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -147,14 +154,13 @@ func TestTagHandler_List_Success(t *testing.T) {
 func TestTagHandler_Delete_Success(t *testing.T) {
 	repo := newMockTagRepo()
 	repo.tags["tag-1"] = domain.NewTag("tag-1", "user-123", "Tag1", "#111111")
-	
-	mux := setupTagRouter(repo)
+
+	r := setupTagRouter(repo, "user-123")
 
 	req := httptest.NewRequest("DELETE", "/users/user-123/tags/tag-1", nil)
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
 	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected status 204, got %d", rec.Code)
@@ -167,18 +173,16 @@ func TestTagHandler_Delete_Success(t *testing.T) {
 
 func TestTagHandler_Delete_Forbidden(t *testing.T) {
 	repo := newMockTagRepo()
-	// Tag belongs to other-user
 	tag := domain.NewTag("tag-1", "other-user", "Tag1", "#111111")
 	tag.ID = "tag-1"
 	repo.tags["tag-1"] = tag
-	
-	mux := setupTagRouter(repo)
+
+	r := setupTagRouter(repo, "user-123")
 
 	req := httptest.NewRequest("DELETE", "/users/user-123/tags/tag-1", nil)
-	req = req.WithContext(middleware.WithUserID(req.Context(), "user-123"))
 	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected status 403, got %d", rec.Code)

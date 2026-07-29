@@ -5,23 +5,27 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestHealthHandler_Check(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	handler := NewHealthHandler()
 
-	req := httptest.NewRequest("GET", "/v1/health", nil)
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("GET", "/v1/health", nil)
 
-	handler.Check(rec, req)
+	handler.Check(c)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 
 	contentType := rec.Header().Get("Content-Type")
-	if contentType != "application/json" {
-		t.Errorf("expected Content-Type application/json, got %s", contentType)
+	if contentType != "application/json; charset=utf-8" {
+		t.Errorf("expected Content-Type application/json; charset=utf-8, got %s", contentType)
 	}
 
 	var resp HealthResponse

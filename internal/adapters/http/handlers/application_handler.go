@@ -1,10 +1,8 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"hirely-api/internal/adapters/http/dto"
-	"hirely-api/internal/adapters/http/middleware"
 	"hirely-api/internal/adapters/logger"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
@@ -12,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ApplicationHandler struct {
@@ -24,46 +24,46 @@ func NewApplicationHandler(appService *services.ApplicationService) *Application
 	}
 }
 
-func (h *ApplicationHandler) checkIsolation(w http.ResponseWriter, r *http.Request) (string, bool) {
-	authUserID := middleware.GetUserID(r.Context())
+func (h *ApplicationHandler) checkIsolation(c *gin.Context) (string, bool) {
+	authUserID := c.GetString("userID")
 	if authUserID == "" {
 		slog.Warn("Unauthorized application request: missing userID in context",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
-			slog.String("operation", r.Method+" "+r.URL.Path),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
+			slog.String("operation", c.Request.Method+" "+c.Request.URL.Path),
 		)
-		dto.WriteError(w, http.StatusUnauthorized, "Authentication required", "UNAUTHENTICATED")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"message": "Authentication required", "status": "UNAUTHENTICATED"}})
 		return "", false
 	}
 
-	targetUserID := r.PathValue("user_id")
+	targetUserID := c.Param("user_id")
 	if targetUserID == "" || targetUserID != authUserID {
 		slog.Warn("Permission denied: target user_id does not match authenticated user",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
-			slog.String("operation", r.Method+" "+r.URL.Path),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
+			slog.String("operation", c.Request.Method+" "+c.Request.URL.Path),
 			slog.String("authUserId", authUserID),
 			slog.String("targetUserId", targetUserID),
 		)
-		dto.WriteError(w, http.StatusForbidden, "Permission denied: user_id mismatch", "PERMISSION_DENIED")
+		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "Permission denied: user_id mismatch", "status": "PERMISSION_DENIED"}})
 		return "", false
 	}
 
 	return authUserID, true
 }
 
-func (h *ApplicationHandler) Create(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) Create(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
 	var req dto.CreateApplicationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		slog.Warn("Failed to decode application create request",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "CreateApplication"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusBadRequest, "Invalid JSON payload", "INVALID_ARGUMENT")
+		dto.HandleValidationError(c, err)
 		return
 	}
 
@@ -88,34 +88,32 @@ func (h *ApplicationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		TagIDs:             req.TagIDs,
 	}
 
-	app, err := h.appService.CreateApplication(r.Context(), userID, input)
+	app, err := h.appService.CreateApplication(c.Request.Context(), userID, input)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid application data: company_name and job_title are required", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid application data: company_name and job_title are required", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to create application",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "CreateApplication"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(app)
+	c.JSON(http.StatusCreated, app)
 }
 
-func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) List(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
 	var statuses []string
-	statusQuery := r.URL.Query().Get("status")
+	statusQuery := c.Query("status")
 	if statusQuery != "" {
 		for _, s := range strings.Split(statusQuery, ",") {
 			st := strings.TrimSpace(s)
@@ -125,22 +123,22 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	orderBy := r.URL.Query().Get("order_by")
-	orderDir := r.URL.Query().Get("order")
-	search := r.URL.Query().Get("search")
+	orderBy := c.Query("order_by")
+	orderDir := c.Query("order")
+	search := c.Query("search")
 
-	apps, err := h.appService.ListApplications(r.Context(), userID, search, statuses, orderBy, orderDir)
+	apps, err := h.appService.ListApplications(c.Request.Context(), userID, search, statuses, orderBy, orderDir)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid input parameters", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to list applications",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "ListApplications"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
@@ -149,19 +147,17 @@ func (h *ApplicationHandler) List(w http.ResponseWriter, r *http.Request) {
 		NextPageToken: "",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ApplicationHandler) GroupedByStatus(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) GroupedByStatus(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
 	var statuses []string
-	statusQuery := r.URL.Query().Get("status")
+	statusQuery := c.Query("status")
 	if statusQuery != "" {
 		for _, s := range strings.Split(statusQuery, ",") {
 			st := strings.TrimSpace(s)
@@ -171,22 +167,22 @@ func (h *ApplicationHandler) GroupedByStatus(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	orderBy := r.URL.Query().Get("order_by")
-	orderDir := r.URL.Query().Get("order")
-	search := r.URL.Query().Get("search")
+	orderBy := c.Query("order_by")
+	orderDir := c.Query("order")
+	search := c.Query("search")
 
-	grouped, err := h.appService.ListApplicationsGroupedByStatus(r.Context(), userID, search, statuses, orderBy, orderDir)
+	grouped, err := h.appService.ListApplicationsGroupedByStatus(c.Request.Context(), userID, search, statuses, orderBy, orderDir)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid input parameters", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to list applications grouped by status",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "GroupedByStatus"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
@@ -194,61 +190,57 @@ func (h *ApplicationHandler) GroupedByStatus(w http.ResponseWriter, r *http.Requ
 		GroupedApplications: grouped,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ApplicationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) GetByID(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
-	appID := r.PathValue("application_id")
-	app, err := h.appService.GetApplicationByID(r.Context(), userID, appID)
+	appID := c.Param("application_id")
+	app, err := h.appService.GetApplicationByID(c.Request.Context(), userID, appID)
 	if err != nil {
 		if errors.Is(err, domain.ErrApplicationNotFound) {
-			dto.WriteError(w, http.StatusNotFound, "Application not found", "NOT_FOUND")
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Application not found", "status": "NOT_FOUND"}})
 			return
 		}
 		if errors.Is(err, domain.ErrForbidden) {
-			dto.WriteError(w, http.StatusForbidden, "Permission denied", "PERMISSION_DENIED")
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "Permission denied", "status": "PERMISSION_DENIED"}})
 			return
 		}
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid application ID", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid application ID", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to get application by ID",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "GetApplicationByID"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(app)
+	c.JSON(http.StatusOK, app)
 }
 
-func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) Update(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
-	appID := r.PathValue("application_id")
+	appID := c.Param("application_id")
 	var req dto.UpdateApplicationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		slog.Warn("Failed to decode application update request",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "UpdateApplication"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusBadRequest, "Invalid JSON payload", "INVALID_ARGUMENT")
+		dto.HandleValidationError(c, err)
 		return
 	}
 
@@ -273,122 +265,118 @@ func (h *ApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		TagIDs:             req.TagIDs,
 	}
 
-	app, err := h.appService.UpdateApplication(r.Context(), userID, appID, input)
+	app, err := h.appService.UpdateApplication(c.Request.Context(), userID, appID, input)
 	if err != nil {
 		if errors.Is(err, domain.ErrApplicationNotFound) {
-			dto.WriteError(w, http.StatusNotFound, "Application not found", "NOT_FOUND")
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Application not found", "status": "NOT_FOUND"}})
 			return
 		}
 		if errors.Is(err, domain.ErrForbidden) {
-			dto.WriteError(w, http.StatusForbidden, "Permission denied", "PERMISSION_DENIED")
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "Permission denied", "status": "PERMISSION_DENIED"}})
 			return
 		}
 		if errors.Is(err, domain.ErrInvalidInput) || errors.Is(err, domain.ErrInvalidStatusTransition) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid update parameters", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid update parameters", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to update application",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "UpdateApplication"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(app)
+	c.JSON(http.StatusOK, app)
 }
 
-func (h *ApplicationHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) Delete(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
-	appID := r.PathValue("application_id")
-	err := h.appService.DeleteApplication(r.Context(), userID, appID)
+	appID := c.Param("application_id")
+	err := h.appService.DeleteApplication(c.Request.Context(), userID, appID)
 	if err != nil {
 		if errors.Is(err, domain.ErrApplicationNotFound) {
-			dto.WriteError(w, http.StatusNotFound, "Application not found", "NOT_FOUND")
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Application not found", "status": "NOT_FOUND"}})
 			return
 		}
 		if errors.Is(err, domain.ErrForbidden) {
-			dto.WriteError(w, http.StatusForbidden, "Permission denied", "PERMISSION_DENIED")
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "Permission denied", "status": "PERMISSION_DENIED"}})
 			return
 		}
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Invalid application ID", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid application ID", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to delete application",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "DeleteApplication"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
 
-func (h *ApplicationHandler) AddEvent(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) AddEvent(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
-	appID := r.PathValue("application_id")
+	appID := c.Param("application_id")
 	var req dto.CreateManualEventRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		slog.Warn("Failed to decode create manual event request",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "AddEvent"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusBadRequest, "Invalid JSON payload", "INVALID_ARGUMENT")
+		dto.HandleValidationError(c, err)
 		return
 	}
 
-	event, err := h.appService.AddManualEvent(r.Context(), userID, appID, req.Description)
+	event, err := h.appService.AddManualEvent(c.Request.Context(), userID, appID, req.Description)
 	if err != nil {
 		if errors.Is(err, domain.ErrApplicationNotFound) {
-			dto.WriteError(w, http.StatusNotFound, "Application not found", "NOT_FOUND")
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Application not found", "status": "NOT_FOUND"}})
 			return
 		}
 		if errors.Is(err, domain.ErrForbidden) {
-			dto.WriteError(w, http.StatusForbidden, "Permission denied", "PERMISSION_DENIED")
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"message": "Permission denied", "status": "PERMISSION_DENIED"}})
 			return
 		}
 		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(w, http.StatusBadRequest, "Description is required", "INVALID_ARGUMENT")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Description is required", "status": "INVALID_ARGUMENT"}})
 			return
 		}
 		slog.Error("Failed to add manual event",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "AddEvent"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(event)
+	c.JSON(http.StatusCreated, event)
 }
 
-func (h *ApplicationHandler) GetStats(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.checkIsolation(w, r)
+func (h *ApplicationHandler) GetStats(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
 	if !ok {
 		return
 	}
 
 	var startDate, endDate *time.Time
 
-	startStr := r.URL.Query().Get("start_date")
+	startStr := c.Query("start_date")
 	if startStr != "" {
 		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
 			startDate = &t
@@ -397,7 +385,7 @@ func (h *ApplicationHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	endStr := r.URL.Query().Get("end_date")
+	endStr := c.Query("end_date")
 	if endStr != "" {
 		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
 			endDate = &t
@@ -408,14 +396,14 @@ func (h *ApplicationHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	stats, err := h.appService.GetApplicationStats(r.Context(), userID, startDate, endDate)
+	stats, err := h.appService.GetApplicationStats(c.Request.Context(), userID, startDate, endDate)
 	if err != nil {
 		slog.Error("Failed to get application stats",
-			slog.String("traceId", logger.GetTraceID(r.Context())),
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "GetStats"),
 			slog.String("error", err.Error()),
 		)
-		dto.WriteError(w, http.StatusInternalServerError, "Internal server error", "INTERNAL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
@@ -426,7 +414,5 @@ func (h *ApplicationHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 		TopTags:                 stats.TopTags,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }

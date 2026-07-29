@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"hirely-api/internal/adapters/http/dto"
-	"hirely-api/internal/adapters/http/middleware"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 type mockUserRepoForHandlerTest struct {
@@ -50,6 +51,7 @@ func (m *mockUserRepoForHandlerTest) FindByID(ctx context.Context, id string) (*
 }
 
 func TestUserHandler_GetMe_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepoForHandlerTest()
 	userService := services.NewUserService(repo)
 	handler := NewUserHandler(userService)
@@ -57,12 +59,12 @@ func TestUserHandler_GetMe_Success(t *testing.T) {
 	user := domain.NewUser("user-777", "Otavio Mendes", "otavio@hirely.app", "hash")
 	_ = repo.Create(context.Background(), user)
 
-	req := httptest.NewRequest("GET", "/v1/users/me", nil)
-	ctx := middleware.WithUserID(req.Context(), "user-777")
-	req = req.WithContext(ctx)
-
 	rec := httptest.NewRecorder()
-	handler.GetMe(rec, req)
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("GET", "/v1/users/me", nil)
+	c.Set("userID", "user-777")
+
+	handler.GetMe(c)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -82,16 +84,17 @@ func TestUserHandler_GetMe_Success(t *testing.T) {
 }
 
 func TestUserHandler_GetMe_NotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepoForHandlerTest()
 	userService := services.NewUserService(repo)
 	handler := NewUserHandler(userService)
 
-	req := httptest.NewRequest("GET", "/v1/users/me", nil)
-	ctx := middleware.WithUserID(req.Context(), "non-existent")
-	req = req.WithContext(ctx)
-
 	rec := httptest.NewRecorder()
-	handler.GetMe(rec, req)
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("GET", "/v1/users/me", nil)
+	c.Set("userID", "non-existent")
+
+	handler.GetMe(c)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", rec.Code)
@@ -107,14 +110,16 @@ func TestUserHandler_GetMe_NotFound(t *testing.T) {
 }
 
 func TestUserHandler_GetMe_UnauthorizedWithoutContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	repo := newMockUserRepoForHandlerTest()
 	userService := services.NewUserService(repo)
 	handler := NewUserHandler(userService)
 
-	req := httptest.NewRequest("GET", "/v1/users/me", nil)
 	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest("GET", "/v1/users/me", nil)
 
-	handler.GetMe(rec, req)
+	handler.GetMe(c)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d", rec.Code)
