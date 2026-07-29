@@ -56,7 +56,7 @@ func main() {
 	tagHandler := handlers.NewTagHandler(tagService)
 	healthHandler := handlers.NewHealthHandler()
 
-	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, appHandler, tagHandler, healthHandler, cfg.JWTSecret)
+	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, appHandler, tagHandler, healthHandler, cfg.JWTSecret, cfg.ENV)
 
 	startHTTPServer(cfg, mux)
 }

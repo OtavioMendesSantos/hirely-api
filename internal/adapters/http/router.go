@@ -15,7 +15,11 @@ func SetupRoutes(
 	tagHandler *handlers.TagHandler,
 	healthHandler *handlers.HealthHandler,
 	jwtSecret string,
+	env string,
 ) *gin.Engine {
+	if env == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	r := gin.New()
 
 	r.Use(middleware.Trace())
