@@ -208,9 +208,9 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 	}
 	stats.TotalApplications = total
 	stats.KPIs.Interviews.Count = interviewOrBeyond
-	
+
 	stats.KPIs.Rejections.Count = stats.FunnelByStatus[string(domain.StatusRejected)]
-	
+
 	appliedOrBeyond := total - stats.FunnelByStatus[string(domain.StatusToApply)]
 	if appliedOrBeyond > 0 {
 		stats.KPIs.Interviews.Rate = float64(interviewOrBeyond) / float64(appliedOrBeyond)
@@ -222,7 +222,7 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 		Where("user_id = ?", userID).
 		Where("status = ?", domain.StatusApplied).
 		Where("updated_at <= ?", time.Now().Add(-30*24*time.Hour))
-	
+
 	if startDate != nil {
 		queryGhosted = queryGhosted.Where("created_at >= ?", startDate)
 	}
@@ -242,7 +242,7 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 		Joins("JOIN application_tags at ON t.id = at.tag_id").
 		Joins("JOIN applications a ON a.id = at.application_id").
 		Where("a.user_id = ?", userID)
-		
+
 	if startDate != nil {
 		query2 = query2.Where("a.created_at >= ?", startDate)
 	}

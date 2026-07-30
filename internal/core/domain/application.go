@@ -65,10 +65,10 @@ type KPIs struct {
 }
 
 type ApplicationStats struct {
-	TotalApplications int               `json:"total_applications"`
-	FunnelByStatus    map[string]int    `json:"funnel_by_status"`
-	KPIs              KPIs              `json:"kpis"`
-	TopTags           []TagCountStats   `json:"top_tags"`
+	TotalApplications int             `json:"total_applications"`
+	FunnelByStatus    map[string]int  `json:"funnel_by_status"`
+	KPIs              KPIs            `json:"kpis"`
+	TopTags           []TagCountStats `json:"top_tags"`
 }
 
 type TagCountStats struct {

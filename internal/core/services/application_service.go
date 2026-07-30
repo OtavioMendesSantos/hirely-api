@@ -83,12 +83,12 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, userID strin
 	}
 
 	app := domain.NewApplication(uuid.NewString(), userID, companyName, jobTitle, status)
-	
+
 	if input.ContractType != nil && !input.ContractType.IsValid() {
 		return nil, domain.ErrInvalidInput
 	}
 	app.ContractType = input.ContractType
-	
+
 	app.JobURL = strings.TrimSpace(input.JobURL)
 	app.SalaryRange = strings.TrimSpace(input.SalaryRange)
 	app.Location = strings.TrimSpace(input.Location)

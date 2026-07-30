@@ -35,10 +35,10 @@ func NewAutomaticEvent(id, applicationID, desc, prevStatus, newStatus string) *E
 
 func NewManualEvent(id, applicationID, desc string) *Event {
 	return &Event{
-		ID:             id,
-		ApplicationID:  applicationID,
-		Type:           EventTypeManual,
-		Description:    desc,
-		CreatedAt:      time.Now().UTC(),
+		ID:            id,
+		ApplicationID: applicationID,
+		Type:          EventTypeManual,
+		Description:   desc,
+		CreatedAt:     time.Now().UTC(),
 	}
 }

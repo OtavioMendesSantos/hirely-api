@@ -80,10 +80,14 @@ func (m *mockAppRepoForHandlerTest) GetStatsByUserID(ctx context.Context, userID
 	return &domain.ApplicationStats{
 		TotalApplications: 10,
 		FunnelByStatus: map[string]int{
-			"applied": 10,
+			"applied":   10,
 			"interview": 5,
 		},
-		ConversionRateInterview: 50.0,
+		KPIs: domain.KPIs{
+			Interviews: domain.KPIMetric{Count: 5, Rate: 0.5},
+			Rejections: domain.KPIMetric{Count: 2, Rate: 0.2},
+			Ghosting:   domain.KPIMetric{Count: 1, Rate: 0.1},
+		},
 		TopTags: []domain.TagCountStats{
 			{TagName: "Backend", Count: 3},
 		},
@@ -355,8 +359,8 @@ func TestApplicationHandler_GetStats_Success(t *testing.T) {
 	if resp.TotalApplications != 10 {
 		t.Errorf("expected 10 total applications, got %d", resp.TotalApplications)
 	}
-	if resp.ConversionRateInterview != 50.0 {
-		t.Errorf("expected 50.0 conversion rate, got %f", resp.ConversionRateInterview)
+	if resp.KPIs.Interviews.Rate != 0.5 {
+		t.Errorf("expected 0.5 conversion rate, got %f", resp.KPIs.Interviews.Rate)
 	}
 	if len(resp.TopTags) != 1 || resp.TopTags[0].TagName != "Backend" {
 		t.Errorf("unexpected top tags: %+v", resp.TopTags)

@@ -149,4 +149,3 @@ func (s *AuthService) GoogleLogin(ctx context.Context, email, name, googleID str
 
 	return user, tokenString, nil
 }
-

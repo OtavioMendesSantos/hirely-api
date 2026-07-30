@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	adapterHttp "hirely-api/internal/adapters/http"
 	"hirely-api/internal/adapters/http/handlers"
 	"hirely-api/internal/adapters/logger"
@@ -16,8 +18,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func init() {

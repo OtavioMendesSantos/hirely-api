@@ -27,7 +27,7 @@ func (s *TagService) CreateTag(ctx context.Context, userID, name, colorHex strin
 	}
 
 	tag := domain.NewTag(uuid.NewString(), userID, name, colorHex)
-	
+
 	if err := s.tagRepo.Create(ctx, tag); err != nil {
 		return nil, err
 	}

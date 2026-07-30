@@ -12,8 +12,8 @@ import (
 )
 
 type mockUserRepositoryForAuthTest struct {
-	users         map[string]*domain.User
-	createErr     error
+	users          map[string]*domain.User
+	createErr      error
 	findByEmailErr error
 }
 
@@ -265,4 +265,3 @@ func TestAuthService_Login_RepoError(t *testing.T) {
 		t.Errorf("expected db error on login, got %v", err)
 	}
 }
-

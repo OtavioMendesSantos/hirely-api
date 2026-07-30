@@ -2,8 +2,8 @@ package ports
 
 import (
 	"context"
-	"time"
 	"hirely-api/internal/core/domain"
+	"time"
 )
 
 type ApplicationRepository interface {
