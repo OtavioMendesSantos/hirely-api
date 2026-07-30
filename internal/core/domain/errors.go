@@ -9,6 +9,7 @@ var (
 	ErrUserNotFound            = errors.New("user not found")
 	ErrApplicationNotFound     = errors.New("application not found")
 	ErrTagNotFound             = errors.New("tag not found")
+	ErrTagAlreadyExists        = errors.New("tag with this name already exists")
 	ErrForbidden               = errors.New("permission denied")
 	ErrInvalidStatusTransition = errors.New("invalid status transition")
 )

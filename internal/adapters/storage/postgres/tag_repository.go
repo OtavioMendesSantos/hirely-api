@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
+
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/ports"
 
@@ -20,7 +22,13 @@ func NewTagRepository(db *gorm.DB) *TagRepository {
 func (r *TagRepository) Create(ctx context.Context, tag *domain.Tag) error {
 	model := TagFromDomain(tag)
 	result := r.db.WithContext(ctx).Create(model)
-	return result.Error
+	if result.Error != nil {
+		if strings.Contains(result.Error.Error(), "duplicate key value") || strings.Contains(result.Error.Error(), "SQLSTATE 23505") {
+			return domain.ErrTagAlreadyExists
+		}
+		return result.Error
+	}
+	return nil
 }
 
 func (r *TagRepository) FindByID(ctx context.Context, id string) (*domain.Tag, error) {

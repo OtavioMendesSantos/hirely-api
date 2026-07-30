@@ -7,9 +7,9 @@ import (
 
 type TagModel struct {
 	ID        string    `gorm:"type:uuid;primaryKey"`
-	UserID    string    `gorm:"type:uuid;not null;index"`
+	UserID    string    `gorm:"type:uuid;not null;uniqueIndex:idx_user_tag_name"`
 	User      UserModel `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	Name      string    `gorm:"type:varchar(255);not null"`
+	Name      string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_user_tag_name"`
 	ColorHex  string    `gorm:"type:varchar(7);not null"`
 	CreatedAt time.Time `gorm:"type:timestamp;not null"`
 }

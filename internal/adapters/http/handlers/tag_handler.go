@@ -71,6 +71,10 @@ func (h *TagHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid tag data: name and color_hex are required", "status": "INVALID_ARGUMENT"}})
 			return
 		}
+		if errors.Is(err, domain.ErrTagAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": gin.H{"message": "Tag with this name already exists", "status": "ALREADY_EXISTS"}})
+			return
+		}
 		slog.Error("Failed to create tag",
 			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
 			slog.String("operation", "CreateTag"),
