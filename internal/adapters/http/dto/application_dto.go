@@ -48,9 +48,20 @@ type GroupedApplicationsResponse struct {
 	GroupedApplications map[domain.ApplicationStatus][]*domain.Application `json:"grouped_applications"`
 }
 
+type KPIMetric struct {
+	Count int     `json:"count"`
+	Rate  float64 `json:"rate"`
+}
+
+type KPIs struct {
+	Interviews KPIMetric `json:"interviews"`
+	Rejections KPIMetric `json:"rejections"`
+	Ghosting   KPIMetric `json:"ghosting"`
+}
+
 type ApplicationStatsResponse struct {
-	TotalApplications       int                    `json:"total_applications"`
-	FunnelByStatus          map[string]int         `json:"funnel_by_status"`
-	ConversionRateInterview float64                `json:"conversion_rate_interview"`
-	TopTags                 []domain.TagCountStats `json:"top_tags"`
+	TotalApplications int                    `json:"total_applications"`
+	FunnelByStatus    map[string]int         `json:"funnel_by_status"`
+	KPIs              KPIs                   `json:"kpis"`
+	TopTags           []domain.TagCountStats `json:"top_tags"`
 }

@@ -207,10 +207,34 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 		}
 	}
 	stats.TotalApplications = total
+	stats.KPIs.Interviews.Count = interviewOrBeyond
+	
+	stats.KPIs.Rejections.Count = stats.FunnelByStatus[string(domain.StatusRejected)]
 	
 	appliedOrBeyond := total - stats.FunnelByStatus[string(domain.StatusToApply)]
 	if appliedOrBeyond > 0 {
-		stats.ConversionRateInterview = float64(interviewOrBeyond) / float64(appliedOrBeyond)
+		stats.KPIs.Interviews.Rate = float64(interviewOrBeyond) / float64(appliedOrBeyond)
+		stats.KPIs.Rejections.Rate = float64(stats.KPIs.Rejections.Count) / float64(appliedOrBeyond)
+	}
+
+	var ghostedCount int64
+	queryGhosted := r.db.WithContext(ctx).Model(&ApplicationModel{}).
+		Where("user_id = ?", userID).
+		Where("status = ?", domain.StatusApplied).
+		Where("updated_at <= ?", time.Now().Add(-30*24*time.Hour))
+	
+	if startDate != nil {
+		queryGhosted = queryGhosted.Where("created_at >= ?", startDate)
+	}
+	if endDate != nil {
+		queryGhosted = queryGhosted.Where("created_at <= ?", endDate)
+	}
+	if err := queryGhosted.Count(&ghostedCount).Error; err != nil {
+		return nil, err
+	}
+	stats.KPIs.Ghosting.Count = int(ghostedCount)
+	if appliedOrBeyond > 0 {
+		stats.KPIs.Ghosting.Rate = float64(stats.KPIs.Ghosting.Count) / float64(appliedOrBeyond)
 	}
 
 	query2 := r.db.WithContext(ctx).Table("tags t").

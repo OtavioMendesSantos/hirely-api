@@ -53,11 +53,22 @@ type Application struct {
 	Tags               []Tag             `json:"tags,omitempty"`
 }
 
+type KPIMetric struct {
+	Count int     `json:"count"`
+	Rate  float64 `json:"rate"`
+}
+
+type KPIs struct {
+	Interviews KPIMetric `json:"interviews"`
+	Rejections KPIMetric `json:"rejections"`
+	Ghosting   KPIMetric `json:"ghosting"`
+}
+
 type ApplicationStats struct {
-	TotalApplications       int               `json:"total_applications"`
-	FunnelByStatus          map[string]int    `json:"funnel_by_status"`
-	ConversionRateInterview float64           `json:"conversion_rate_interview"`
-	TopTags                 []TagCountStats   `json:"top_tags"`
+	TotalApplications int               `json:"total_applications"`
+	FunnelByStatus    map[string]int    `json:"funnel_by_status"`
+	KPIs              KPIs              `json:"kpis"`
+	TopTags           []TagCountStats   `json:"top_tags"`
 }
 
 type TagCountStats struct {

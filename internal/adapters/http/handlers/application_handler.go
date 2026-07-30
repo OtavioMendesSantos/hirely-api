@@ -408,10 +408,23 @@ func (h *ApplicationHandler) GetStats(c *gin.Context) {
 	}
 
 	resp := dto.ApplicationStatsResponse{
-		TotalApplications:       stats.TotalApplications,
-		FunnelByStatus:          stats.FunnelByStatus,
-		ConversionRateInterview: stats.ConversionRateInterview,
-		TopTags:                 stats.TopTags,
+		TotalApplications: stats.TotalApplications,
+		FunnelByStatus:    stats.FunnelByStatus,
+		KPIs: dto.KPIs{
+			Interviews: dto.KPIMetric{
+				Count: stats.KPIs.Interviews.Count,
+				Rate:  stats.KPIs.Interviews.Rate,
+			},
+			Rejections: dto.KPIMetric{
+				Count: stats.KPIs.Rejections.Count,
+				Rate:  stats.KPIs.Rejections.Rate,
+			},
+			Ghosting: dto.KPIMetric{
+				Count: stats.KPIs.Ghosting.Count,
+				Rate:  stats.KPIs.Ghosting.Rate,
+			},
+		},
+		TopTags: stats.TopTags,
 	}
 
 	c.JSON(http.StatusOK, resp)

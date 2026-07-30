@@ -3,10 +3,10 @@ package domain
 import "errors"
 
 var (
-	ErrEmailAlreadyExists = errors.New("email already registered")
-	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrInvalidInput       = errors.New("invalid input parameters")
-	ErrUserNotFound       = errors.New("user not found")
+	ErrEmailAlreadyExists      = errors.New("email already registered")
+	ErrInvalidCredentials      = errors.New("invalid email or password")
+	ErrInvalidInput            = errors.New("invalid input parameters")
+	ErrUserNotFound            = errors.New("user not found")
 	ErrApplicationNotFound     = errors.New("application not found")
 	ErrTagNotFound             = errors.New("tag not found")
 	ErrForbidden               = errors.New("permission denied")

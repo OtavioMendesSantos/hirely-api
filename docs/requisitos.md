@@ -618,7 +618,20 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
     "OFFER": 1,
     "REJECTED": 2
   },
-  "conversion_rate_interview": 0.33,
+  "kpis": {
+    "interviews": {
+      "count": 5,
+      "rate": 0.33
+    },
+    "rejections": {
+      "count": 2,
+      "rate": 0.13
+    },
+    "ghosting": {
+      "count": 3,
+      "rate": 0.20
+    }
+  },
   "top_tags": [
     { "tag_name": "Remote", "count": 18 },
     { "tag_name": "Go", "count": 14 }
