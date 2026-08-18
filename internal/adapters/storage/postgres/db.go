@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"time"
@@ -24,11 +25,31 @@ func NewConnection(cfg DBConfig) (*gorm.DB, error) {
 		cfg.Host, cfg.User, cfg.Password, cfg.DBName, cfg.Port, cfg.SSLMode,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	var db *gorm.DB
+	var err error
+
+	maxRetries := 5
+	for i := range maxRetries {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Silent),
+		})
+		if err == nil {
+			var sqlDB *sql.DB
+			sqlDB, err = db.DB()
+			if err == nil {
+				err = sqlDB.Ping()
+				if err == nil {
+					break
+				}
+			}
+		}
+
+		slog.Warn("Failed to connect to database, retrying...", slog.Int("attempt", i+1), slog.String("error", err.Error()))
+		time.Sleep(time.Second * time.Duration(1<<i))
+	}
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, err)
 	}
 
 	sqlDB, err := db.DB()
