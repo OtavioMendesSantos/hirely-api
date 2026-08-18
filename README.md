@@ -34,4 +34,14 @@ O Hirely é um aplicativo web voltado para a gestão, centralização e rastreab
    docker run -p 8080:8080 hirely-api:latest
    ```
 
+### Seed de Dados (Mock Data)
+
+Para facilitar o desenvolvimento e testes locais, você pode popular o banco de dados com dados fictícios (usuários, aplicações, tags, métricas) usando o script de *seed*:
+
+```bash
+# Na raiz do hirely-api:
+go run cmd/seed/main.go
+```
+Isso criará um usuário de teste (`teste@hirely.com`) e gerará diversas aplicações em diferentes estágios do funil para visualizar no dashboard.
+
 *(Consulte a pasta `docs/` para ler a especificação técnica detalhada da API e payloads de integração)*
