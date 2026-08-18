@@ -64,4 +64,5 @@ type ApplicationStatsResponse struct {
 	FunnelByStatus    map[string]int         `json:"funnel_by_status"`
 	KPIs              KPIs                   `json:"kpis"`
 	TopTags           []domain.TagCountStats `json:"top_tags"`
+	TopJobTitles      []domain.JobTitleStats `json:"top_job_titles"`
 }

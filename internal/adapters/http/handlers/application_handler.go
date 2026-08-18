@@ -425,6 +425,7 @@ func (h *ApplicationHandler) GetStats(c *gin.Context) {
 			},
 		},
 		TopTags: stats.TopTags,
+		TopJobTitles: stats.TopJobTitles,
 	}
 
 	c.JSON(http.StatusOK, resp)

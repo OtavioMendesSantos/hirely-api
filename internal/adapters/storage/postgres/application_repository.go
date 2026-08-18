@@ -256,6 +256,54 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 		return nil, err
 	}
 
+	var topJobTitles []domain.JobTitleStats
+	rawQuery := `
+		WITH cargos_normalizados AS (
+			SELECT TRIM(LOWER(job_title)) AS cargo, COUNT(*) AS frequencia
+			FROM applications
+			WHERE user_id = ?
+	`
+	args := []any{userID}
+
+	if startDate != nil {
+		rawQuery += ` AND created_at >= ?`
+		args = append(args, startDate)
+	}
+	if endDate != nil {
+		rawQuery += ` AND created_at <= ?`
+		args = append(args, endDate)
+	}
+
+	rawQuery += `
+			GROUP BY TRIM(LOWER(job_title))
+		),
+		cargos_canonicos AS (
+			SELECT 
+				c1.cargo AS cargo_original,
+				(
+					SELECT c2.cargo 
+					FROM cargos_normalizados c2 
+					WHERE levenshtein(c1.cargo, c2.cargo) <= 2 
+					ORDER BY c2.frequencia DESC 
+					LIMIT 1
+				) AS cargo_canonico,
+				c1.frequencia
+			FROM cargos_normalizados c1
+		)
+		SELECT 
+			cargo_canonico AS job_title, 
+			SUM(frequencia) AS count
+		FROM cargos_canonicos
+		GROUP BY cargo_canonico
+		ORDER BY count DESC
+		LIMIT 5;
+	`
+
+	if err := r.db.WithContext(ctx).Raw(rawQuery, args...).Scan(&topJobTitles).Error; err != nil {
+		return nil, err
+	}
+	stats.TopJobTitles = topJobTitles
+
 	return stats, nil
 }
 

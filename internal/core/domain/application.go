@@ -69,11 +69,17 @@ type ApplicationStats struct {
 	FunnelByStatus    map[string]int  `json:"funnel_by_status"`
 	KPIs              KPIs            `json:"kpis"`
 	TopTags           []TagCountStats `json:"top_tags"`
+	TopJobTitles      []JobTitleStats `json:"top_job_titles"`
 }
 
 type TagCountStats struct {
 	TagName string `json:"tag_name"`
 	Count   int    `json:"count"`
+}
+
+type JobTitleStats struct {
+	JobTitle string `json:"job_title"`
+	Count    int    `json:"count"`
 }
 
 func NewApplication(id, userID, companyName, jobTitle string, status ApplicationStatus) *Application {
