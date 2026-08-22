@@ -115,7 +115,7 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 	var statuses []string
 	statusQuery := c.Query("status")
 	if statusQuery != "" {
-		for _, s := range strings.Split(statusQuery, ",") {
+		for s := range strings.SplitSeq(statusQuery, ",") {
 			st := strings.TrimSpace(s)
 			if st != "" {
 				statuses = append(statuses, st)
@@ -127,7 +127,18 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 	orderDir := c.Query("order")
 	search := c.Query("search")
 
-	apps, err := h.appService.ListApplications(c.Request.Context(), userID, search, statuses, orderBy, orderDir)
+	var tagIDs []string
+	tagQuery := c.Query("tag_ids")
+	if tagQuery != "" {
+		for t := range strings.SplitSeq(tagQuery, ",") {
+			tr := strings.TrimSpace(t)
+			if tr != "" {
+				tagIDs = append(tagIDs, tr)
+			}
+		}
+	}
+
+	apps, err := h.appService.ListApplications(c.Request.Context(), userID, search, statuses, tagIDs, orderBy, orderDir)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid input parameters", "status": "INVALID_ARGUMENT"}})
@@ -159,7 +170,7 @@ func (h *ApplicationHandler) GroupedByStatus(c *gin.Context) {
 	var statuses []string
 	statusQuery := c.Query("status")
 	if statusQuery != "" {
-		for _, s := range strings.Split(statusQuery, ",") {
+		for s := range strings.SplitSeq(statusQuery, ",") {
 			st := strings.TrimSpace(s)
 			if st != "" {
 				statuses = append(statuses, st)
@@ -171,7 +182,18 @@ func (h *ApplicationHandler) GroupedByStatus(c *gin.Context) {
 	orderDir := c.Query("order")
 	search := c.Query("search")
 
-	grouped, err := h.appService.ListApplicationsGroupedByStatus(c.Request.Context(), userID, search, statuses, orderBy, orderDir)
+	var tagIDs []string
+	tagQuery := c.Query("tag_ids")
+	if tagQuery != "" {
+		for t := range strings.SplitSeq(tagQuery, ",") {
+			tr := strings.TrimSpace(t)
+			if tr != "" {
+				tagIDs = append(tagIDs, tr)
+			}
+		}
+	}
+
+	grouped, err := h.appService.ListApplicationsGroupedByStatus(c.Request.Context(), userID, search, statuses, tagIDs, orderBy, orderDir)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid input parameters", "status": "INVALID_ARGUMENT"}})

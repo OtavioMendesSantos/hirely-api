@@ -37,7 +37,7 @@ func (m *mockAppRepoForHandlerTest) FindByID(ctx context.Context, id string) (*d
 	return app, nil
 }
 
-func (m *mockAppRepoForHandlerTest) ListByUserID(ctx context.Context, userID string, search string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (m *mockAppRepoForHandlerTest) ListByUserID(ctx context.Context, userID string, search string, tagIDs []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	var list []*domain.Application
 	for _, app := range m.apps {
 		if app.UserID == userID {
@@ -47,7 +47,7 @@ func (m *mockAppRepoForHandlerTest) ListByUserID(ctx context.Context, userID str
 	return list, nil
 }
 
-func (m *mockAppRepoForHandlerTest) ListByUserIDWithFilters(ctx context.Context, userID string, search string, statuses []string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (m *mockAppRepoForHandlerTest) ListByUserIDWithFilters(ctx context.Context, userID string, search string, statuses []string, tagIDs []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	statusMap := make(map[string]bool)
 	for _, st := range statuses {
 		statusMap[st] = true

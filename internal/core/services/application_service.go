@@ -196,7 +196,7 @@ func normalizeOrderOptions(orderBy, orderDir string) (string, string, bool) {
 	return orderBy, orderDir, true
 }
 
-func (s *ApplicationService) ListApplications(ctx context.Context, userID string, search string, statusFilters []string, orderBy string, orderDir string) ([]*domain.Application, error) {
+func (s *ApplicationService) ListApplications(ctx context.Context, userID string, search string, statusFilters []string, tagIDs []string, orderBy string, orderDir string) ([]*domain.Application, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
 		return nil, domain.ErrInvalidInput
@@ -215,14 +215,22 @@ func (s *ApplicationService) ListApplications(ctx context.Context, userID string
 		}
 	}
 
-	if len(validFilters) > 0 {
-		return s.appRepo.ListByUserIDWithFilters(ctx, userID, search, validFilters, normOrderBy, normOrderDir)
+	var validTagIDs []string
+	for _, t := range tagIDs {
+		tTrim := strings.TrimSpace(t)
+		if tTrim != "" {
+			validTagIDs = append(validTagIDs, tTrim)
+		}
 	}
-	return s.appRepo.ListByUserID(ctx, userID, search, normOrderBy, normOrderDir)
+
+	if len(validFilters) > 0 {
+		return s.appRepo.ListByUserIDWithFilters(ctx, userID, search, validFilters, validTagIDs, normOrderBy, normOrderDir)
+	}
+	return s.appRepo.ListByUserID(ctx, userID, search, validTagIDs, normOrderBy, normOrderDir)
 }
 
-func (s *ApplicationService) ListApplicationsGroupedByStatus(ctx context.Context, userID string, search string, statusFilters []string, orderBy string, orderDir string) (map[domain.ApplicationStatus][]*domain.Application, error) {
-	apps, err := s.ListApplications(ctx, userID, search, statusFilters, orderBy, orderDir)
+func (s *ApplicationService) ListApplicationsGroupedByStatus(ctx context.Context, userID string, search string, statusFilters []string, tagIDs []string, orderBy string, orderDir string) (map[domain.ApplicationStatus][]*domain.Application, error) {
+	apps, err := s.ListApplications(ctx, userID, search, statusFilters, tagIDs, orderBy, orderDir)
 	if err != nil {
 		return nil, err
 	}
