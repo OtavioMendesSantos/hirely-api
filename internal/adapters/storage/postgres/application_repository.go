@@ -219,10 +219,32 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 
 	stats.KPIs.Rejections.Count = stats.FunnelByStatus[string(domain.StatusRejected)]
 
+	var advancedRejectionsCount int64
+	queryAdv := r.db.WithContext(ctx).Table("applications a").
+		Joins("JOIN events e ON a.id = e.application_id").
+		Where("a.user_id = ?", userID).
+		Where("a.status = ?", domain.StatusRejected).
+		Where("e.new_status IN (?) OR e.previous_status IN (?)", []string{string(domain.StatusInterview), string(domain.StatusOffer)}, []string{string(domain.StatusInterview), string(domain.StatusOffer)})
+
+	if startDate != nil {
+		queryAdv = queryAdv.Where("a.created_at >= ?", startDate)
+	}
+	if endDate != nil {
+		queryAdv = queryAdv.Where("a.created_at <= ?", endDate)
+	}
+	if err := queryAdv.Distinct("a.id").Count(&advancedRejectionsCount).Error; err != nil {
+		return nil, err
+	}
+
+	stats.KPIs.AdvancedRejections.Count = int(advancedRejectionsCount)
+	stats.KPIs.DirectRejections.Count = stats.KPIs.Rejections.Count - stats.KPIs.AdvancedRejections.Count
+
 	appliedOrBeyond := total - stats.FunnelByStatus[string(domain.StatusToApply)]
 	if appliedOrBeyond > 0 {
 		stats.KPIs.Interviews.Rate = float64(interviewOrBeyond) / float64(appliedOrBeyond)
 		stats.KPIs.Rejections.Rate = float64(stats.KPIs.Rejections.Count) / float64(appliedOrBeyond)
+		stats.KPIs.AdvancedRejections.Rate = float64(stats.KPIs.AdvancedRejections.Count) / float64(appliedOrBeyond)
+		stats.KPIs.DirectRejections.Rate = float64(stats.KPIs.DirectRejections.Count) / float64(appliedOrBeyond)
 	}
 
 	var ghostedCount int64

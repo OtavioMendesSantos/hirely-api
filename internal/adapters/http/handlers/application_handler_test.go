@@ -84,9 +84,11 @@ func (m *mockAppRepoForHandlerTest) GetStatsByUserID(ctx context.Context, userID
 			"interview": 5,
 		},
 		KPIs: domain.KPIs{
-			Interviews: domain.KPIMetric{Count: 5, Rate: 0.5},
-			Rejections: domain.KPIMetric{Count: 2, Rate: 0.2},
-			Ghosting:   domain.KPIMetric{Count: 1, Rate: 0.1},
+			Interviews:         domain.KPIMetric{Count: 5, Rate: 0.5},
+			Rejections:         domain.KPIMetric{Count: 2, Rate: 0.2},
+			DirectRejections:   domain.KPIMetric{Count: 1, Rate: 0.1},
+			AdvancedRejections: domain.KPIMetric{Count: 1, Rate: 0.1},
+			Ghosting:           domain.KPIMetric{Count: 1, Rate: 0.1},
 		},
 		TopTags: []domain.TagCountStats{
 			{TagName: "Backend", Count: 3},
@@ -361,6 +363,12 @@ func TestApplicationHandler_GetStats_Success(t *testing.T) {
 	}
 	if resp.KPIs.Interviews.Rate != 0.5 {
 		t.Errorf("expected 0.5 conversion rate, got %f", resp.KPIs.Interviews.Rate)
+	}
+	if resp.KPIs.DirectRejections.Count != 1 {
+		t.Errorf("expected 1 direct rejection count, got %d", resp.KPIs.DirectRejections.Count)
+	}
+	if resp.KPIs.AdvancedRejections.Count != 1 {
+		t.Errorf("expected 1 advanced rejection count, got %d", resp.KPIs.AdvancedRejections.Count)
 	}
 	if len(resp.TopTags) != 1 || resp.TopTags[0].TagName != "Backend" {
 		t.Errorf("unexpected top tags: %+v", resp.TopTags)

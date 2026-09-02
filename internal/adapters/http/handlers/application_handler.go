@@ -441,12 +441,20 @@ func (h *ApplicationHandler) GetStats(c *gin.Context) {
 				Count: stats.KPIs.Rejections.Count,
 				Rate:  stats.KPIs.Rejections.Rate,
 			},
+			DirectRejections: dto.KPIMetric{
+				Count: stats.KPIs.DirectRejections.Count,
+				Rate:  stats.KPIs.DirectRejections.Rate,
+			},
+			AdvancedRejections: dto.KPIMetric{
+				Count: stats.KPIs.AdvancedRejections.Count,
+				Rate:  stats.KPIs.AdvancedRejections.Rate,
+			},
 			Ghosting: dto.KPIMetric{
 				Count: stats.KPIs.Ghosting.Count,
 				Rate:  stats.KPIs.Ghosting.Rate,
 			},
 		},
-		TopTags: stats.TopTags,
+		TopTags:      stats.TopTags,
 		TopJobTitles: stats.TopJobTitles,
 	}
 

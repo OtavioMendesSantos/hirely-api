@@ -54,9 +54,11 @@ type KPIMetric struct {
 }
 
 type KPIs struct {
-	Interviews KPIMetric `json:"interviews"`
-	Rejections KPIMetric `json:"rejections"`
-	Ghosting   KPIMetric `json:"ghosting"`
+	Interviews         KPIMetric `json:"interviews"`
+	Rejections         KPIMetric `json:"rejections"`
+	DirectRejections   KPIMetric `json:"direct_rejections"`
+	AdvancedRejections KPIMetric `json:"advanced_rejections"`
+	Ghosting           KPIMetric `json:"ghosting"`
 }
 
 type ApplicationStatsResponse struct {

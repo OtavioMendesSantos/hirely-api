@@ -15,6 +15,9 @@ func TestLoad_JWTExpiresInDefault(t *testing.T) {
 	os.Setenv("DB_PASSWORD", "root")
 	os.Setenv("DB_NAME", "hirely")
 	os.Setenv("DB_SSLMODE", "disable")
+	os.Setenv("GOOGLE_CLIENT_ID", "testclientid")
+	os.Setenv("GOOGLE_SECRET_ID", "testsecretid")
+	os.Setenv("FRONT_END_URL", "http://localhost:3000")
 
 	cfg, err := Load()
 	if err != nil {
