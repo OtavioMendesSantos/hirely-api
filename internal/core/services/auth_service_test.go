@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -56,11 +55,45 @@ func (m *mockUserRepositoryForAuthTest) FindByID(ctx context.Context, id string)
 	return nil, nil
 }
 
-func TestAuthService_RegisterUser_Success(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "test-secret-key", 24*time.Hour)
+type mockSessionRepository struct {
+	sessions map[string]*domain.Session
+}
 
-	user, token, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
+func newMockSessionRepository() *mockSessionRepository {
+	return &mockSessionRepository{
+		sessions: make(map[string]*domain.Session),
+	}
+}
+func (m *mockSessionRepository) Create(ctx context.Context, session *domain.Session) error {
+	m.sessions[session.Hash] = session
+	return nil
+}
+func (m *mockSessionRepository) FindByHash(ctx context.Context, hash string) (*domain.Session, error) {
+	s, ok := m.sessions[hash]
+	if !ok {
+		return nil, nil
+	}
+	return s, nil
+}
+func (m *mockSessionRepository) UpdateExpiresAt(ctx context.Context, hash string, expiresAt time.Time) error {
+	if s, ok := m.sessions[hash]; ok {
+		s.ExpiresAt = expiresAt
+	}
+	return nil
+}
+func (m *mockSessionRepository) RevokeByHash(ctx context.Context, hash string) error {
+	if s, ok := m.sessions[hash]; ok {
+		s.Revoked = true
+	}
+	return nil
+}
+
+func TestAuthService_RegisterUser_Success(t *testing.T) {
+	userRepo := newMockUserRepositoryForAuthTest()
+	sessionRepo := newMockSessionRepository()
+	service := NewAuthService(userRepo, sessionRepo)
+
+	user, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -74,31 +107,16 @@ func TestAuthService_RegisterUser_Success(t *testing.T) {
 	if user.Name != "Otavio Mendes" || user.Email != "otavio@hirely.app" {
 		t.Errorf("unexpected user values: %+v", user)
 	}
-	if token == "" {
-		t.Error("expected non-empty JWT token")
-	}
 
-	// Verify password hash
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte("password123")); err != nil {
 		t.Errorf("saved password hash does not match plain password: %v", err)
-	}
-
-	// Verify JWT token claims
-	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		return []byte("test-secret-key"), nil
-	})
-	if err != nil || !parsedToken.Valid {
-		t.Fatalf("failed to verify generated JWT token: %v", err)
-	}
-	claims, ok := parsedToken.Claims.(jwt.MapClaims)
-	if !ok || claims["sub"] != user.ID || claims["email"] != user.Email {
-		t.Errorf("unexpected JWT claims: %+v", claims)
 	}
 }
 
 func TestAuthService_RegisterUser_InvalidInputs(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
+	userRepo := newMockUserRepositoryForAuthTest()
+	sessionRepo := newMockSessionRepository()
+	service := NewAuthService(userRepo, sessionRepo)
 
 	testCases := []struct {
 		name     string
@@ -113,105 +131,59 @@ func TestAuthService_RegisterUser_InvalidInputs(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			user, token, err := service.RegisterUser(context.Background(), tc.userName, tc.email, tc.password)
+			user, err := service.RegisterUser(context.Background(), tc.userName, tc.email, tc.password)
 			if !errors.Is(err, domain.ErrInvalidInput) {
 				t.Errorf("expected ErrInvalidInput, got %v", err)
 			}
-			if user != nil || token != "" {
-				t.Errorf("expected nil user and empty token when input is invalid")
+			if user != nil {
+				t.Errorf("expected nil user when input is invalid")
 			}
 		})
 	}
 }
 
 func TestAuthService_RegisterUser_EmailAlreadyExists(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
+	userRepo := newMockUserRepositoryForAuthTest()
+	sessionRepo := newMockSessionRepository()
+	service := NewAuthService(userRepo, sessionRepo)
 
-	_, _, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
+	_, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 	if err != nil {
 		t.Fatalf("expected first registration to succeed, got %v", err)
 	}
 
-	user, token, err := service.RegisterUser(context.Background(), "Another Name", "otavio@hirely.app", "differentpass")
+	user, err := service.RegisterUser(context.Background(), "Another Name", "otavio@hirely.app", "differentpass")
 	if !errors.Is(err, domain.ErrEmailAlreadyExists) {
 		t.Errorf("expected ErrEmailAlreadyExists, got %v", err)
 	}
-	if user != nil || token != "" {
-		t.Errorf("expected nil user and empty token on duplicate registration")
-	}
-}
-
-func TestAuthService_RegisterUser_RepoError(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
-
-	repo.findByEmailErr = errors.New("database connection failed")
-	_, _, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
-	if err == nil || err.Error() != "database connection failed" {
-		t.Errorf("expected database connection failed error, got %v", err)
-	}
-
-	repo.findByEmailErr = nil
-	repo.createErr = errors.New("insert failed")
-	_, _, err = service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
-	if err == nil || err.Error() != "insert failed" {
-		t.Errorf("expected insert failed error, got %v", err)
+	if user != nil {
+		t.Errorf("expected nil user on duplicate registration")
 	}
 }
 
 func TestAuthService_Login_Success(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
+	userRepo := newMockUserRepositoryForAuthTest()
+	sessionRepo := newMockSessionRepository()
+	service := NewAuthService(userRepo, sessionRepo)
 
-	registeredUser, _, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
+	registeredUser, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 	if err != nil {
 		t.Fatalf("failed to setup test user: %v", err)
 	}
 
-	user, token, err := service.Login(context.Background(), "otavio@hirely.app", "password123", false)
+	user, err := service.Login(context.Background(), "otavio@hirely.app", "password123")
 	if err != nil {
 		t.Fatalf("expected successful login, got %v", err)
 	}
 	if user == nil || user.ID != registeredUser.ID {
 		t.Errorf("expected user %+v, got %+v", registeredUser, user)
 	}
-	if token == "" {
-		t.Error("expected non-empty token on successful login")
-	}
-}
-
-func TestAuthService_Login_RememberMe(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
-
-	_, _, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
-	if err != nil {
-		t.Fatalf("failed to setup test user: %v", err)
-	}
-
-	// Login with rememberMe = true
-	_, tokenRemember, err := service.Login(context.Background(), "otavio@hirely.app", "password123", true)
-	if err != nil {
-		t.Fatalf("expected successful login with rememberMe, got %v", err)
-	}
-
-	parsedToken, _ := jwt.Parse(tokenRemember, func(t *jwt.Token) (interface{}, error) {
-		return []byte("secret"), nil
-	})
-	claims, _ := parsedToken.Claims.(jwt.MapClaims)
-	expRemember := int64(claims["exp"].(float64))
-
-	// Should be approximately 30 days from now (30 * 24h = 720h)
-	expectedExp := time.Now().Add(30 * 24 * time.Hour).Unix()
-	if expRemember < expectedExp-60 || expRemember > expectedExp+60 {
-		t.Errorf("expected expiration around %d, got %d", expectedExp, expRemember)
-	}
 }
 
 func TestAuthService_Login_InvalidInputs(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
+	userRepo := newMockUserRepositoryForAuthTest()
+	sessionRepo := newMockSessionRepository()
+	service := NewAuthService(userRepo, sessionRepo)
 
 	testCases := []struct {
 		name     string
@@ -225,7 +197,7 @@ func TestAuthService_Login_InvalidInputs(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := service.Login(context.Background(), tc.email, tc.password, false)
+			_, err := service.Login(context.Background(), tc.email, tc.password)
 			if !errors.Is(err, domain.ErrInvalidInput) {
 				t.Errorf("expected ErrInvalidInput, got %v", err)
 			}
@@ -234,34 +206,33 @@ func TestAuthService_Login_InvalidInputs(t *testing.T) {
 }
 
 func TestAuthService_Login_UserNotFound(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
+	userRepo := newMockUserRepositoryForAuthTest()
+	sessionRepo := newMockSessionRepository()
+	service := NewAuthService(userRepo, sessionRepo)
 
-	_, _, err := service.Login(context.Background(), "nonexistent@hirely.app", "password123", false)
+	_, err := service.Login(context.Background(), "nonexistent@hirely.app", "password123")
 	if !errors.Is(err, domain.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
 
 func TestAuthService_Login_WrongPassword(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
+	userRepo := newMockUserRepositoryForAuthTest()
+	sessionRepo := newMockSessionRepository()
+	service := NewAuthService(userRepo, sessionRepo)
 
-	_, _, _ = service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
+	_, _ = service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 
-	_, _, err := service.Login(context.Background(), "otavio@hirely.app", "wrongpassword", false)
+	_, err := service.Login(context.Background(), "otavio@hirely.app", "wrongpassword")
 	if !errors.Is(err, domain.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials for wrong password, got %v", err)
 	}
 }
-
-func TestAuthService_Login_RepoError(t *testing.T) {
-	repo := newMockUserRepositoryForAuthTest()
-	service := NewAuthService(repo, "secret", time.Hour)
-
-	repo.findByEmailErr = errors.New("db error on login")
-	_, _, err := service.Login(context.Background(), "otavio@hirely.app", "password123", false)
-	if err == nil || err.Error() != "db error on login" {
-		t.Errorf("expected db error on login, got %v", err)
+func (m *mockSessionRepository) RevokeAllByUserID(ctx context.Context, userID string) error {
+	for _, s := range m.sessions {
+		if s.UserID == userID {
+			s.Revoked = true
+		}
 	}
+	return nil
 }

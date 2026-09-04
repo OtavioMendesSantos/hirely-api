@@ -9,10 +9,14 @@ import (
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
+		// Com AllowCredentials=true, não podemos usar "*".
+		// Fazemos o reflection do origin se presente (permitindo acesso dinâmico).
 		if origin != "" {
 			c.Header("Access-Control-Allow-Origin", origin)
 		} else {
-			c.Header("Access-Control-Allow-Origin", "*")
+			// Apenas para não quebrar algumas ferramentas antigas,
+			// em tese para CLI o CORS nem importa.
+			c.Header("Access-Control-Allow-Origin", "http://localhost:4200")
 		}
 
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")

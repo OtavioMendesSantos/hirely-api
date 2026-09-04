@@ -2,24 +2,24 @@ package middleware
 
 import (
 	"context"
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
 	"hirely-api/internal/adapters/logger"
+	"hirely-api/internal/core/ports"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type userIDKey struct{}
 
-// WithUserID injects the authenticated UserID into the context.
 func WithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userIDKey{}, userID)
 }
 
-// GetUserID retrieves the authenticated UserID from the context.
 func GetUserID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
@@ -30,76 +30,101 @@ func GetUserID(ctx context.Context) string {
 	return ""
 }
 
-// Auth creates an HTTP middleware that validates the Bearer JWT token in the Authorization header.
-func Auth(jwtSecret string) gin.HandlerFunc {
+// HybridAuth cria o middleware que suporta API Keys no Header e Session Cookies.
+func HybridAuth(sessionRepo ports.SessionRepository, apiKeyRepo ports.APIKeyRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 1. Verifica se há uma API Key no header Authorization
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			slog.Warn("Missing Authorization header",
-				slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-				slog.String("operation", "AuthMiddleware"),
-			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing authorization header", "code": "UNAUTHENTICATED"})
-			c.Abort()
-			return
-		}
-
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			slog.Warn("Invalid Authorization header format",
-				slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-				slog.String("operation", "AuthMiddleware"),
-			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format", "code": "UNAUTHENTICATED"})
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+				tokenString := parts[1]
+				if strings.HasPrefix(tokenString, "hirely_sk_") {
+					handleAPIKeyAuth(c, tokenString, apiKeyRepo)
+					return
+				}
 			}
-			return []byte(jwtSecret), nil
-		})
+		}
 
-		if err != nil || !token.Valid {
-			slog.Warn("Invalid or expired JWT token",
-				slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-				slog.String("operation", "AuthMiddleware"),
-				slog.String("error", err.Error()),
-			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token", "code": "UNAUTHENTICATED"})
-			c.Abort()
+		// 2. Fallback para Sessões em Cookies (Web)
+		cookieSid, err := c.Cookie("__Secure-sid")
+		if err == nil && cookieSid != "" {
+			handleSessionAuth(c, cookieSid, sessionRepo)
 			return
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			slog.Warn("Invalid JWT claims format",
-				slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-				slog.String("operation", "AuthMiddleware"),
-			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims", "code": "UNAUTHENTICATED"})
-			c.Abort()
-			return
-		}
-
-		userID, ok := claims["sub"].(string)
-		if !ok || userID == "" {
-			slog.Warn("Missing sub claim in JWT token",
-				slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-				slog.String("operation", "AuthMiddleware"),
-			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token subject", "code": "UNAUTHENTICATED"})
-			c.Abort()
-			return
-		}
-
-		// Save the userID in both contexts to ensure compatibility while transitioning
-		ctx := WithUserID(c.Request.Context(), userID)
-		c.Request = c.Request.WithContext(ctx)
-		c.Set("userID", userID)
-		c.Next()
+		// 3. Nem API Key nem Cookie válido
+		slog.Warn("Missing or invalid authentication credentials",
+			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
+		)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Não autorizado", "code": "UNAUTHENTICATED"})
+		c.Abort()
 	}
+}
+
+func handleAPIKeyAuth(c *gin.Context, rawKey string, repo ports.APIKeyRepository) {
+	hash := sha256.Sum256([]byte(rawKey))
+	hashStr := hex.EncodeToString(hash[:])
+
+	apiKey, err := repo.FindByHash(c.Request.Context(), hashStr)
+	if err != nil || apiKey == nil || apiKey.Revoked {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "API Key inválida ou revogada"})
+		c.Abort()
+		return
+	}
+
+	ip := c.ClientIP()
+	ua := c.GetHeader("User-Agent")
+
+	// Fire-and-forget stat update
+	go func(id, clientIP, userAgent string) {
+		// Criar um novo contexto background para a goroutine
+		repo.RecordUsage(context.Background(), id, clientIP, userAgent, time.Now())
+	}(apiKey.ID, ip, ua)
+
+	injectUserContext(c, apiKey.UserID)
+}
+
+func handleSessionAuth(c *gin.Context, sid string, repo ports.SessionRepository) {
+	hash := sha256.Sum256([]byte(sid))
+	hashStr := hex.EncodeToString(hash[:])
+
+	session, err := repo.FindByHash(c.Request.Context(), hashStr)
+	if err != nil || session == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sessão inválida"})
+		c.Abort()
+		return
+	}
+
+	if session.Revoked {
+		c.SetCookie("__Secure-sid", "", -1, "/", "", true, true)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sessão revogada"})
+		c.Abort()
+		return
+	}
+
+	if time.Now().After(session.ExpiresAt) {
+		c.SetCookie("__Secure-sid", "", -1, "/", "", true, true)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sessão expirada"})
+		c.Abort()
+		return
+	}
+
+	// Sliding window - update expiresAt if less than 5 days
+	if time.Until(session.ExpiresAt) < 5*24*time.Hour {
+		newExpires := time.Now().Add(15 * 24 * time.Hour)
+		go func(hash string, exp time.Time) {
+			repo.UpdateExpiresAt(context.Background(), hash, exp)
+		}(hashStr, newExpires)
+		c.SetCookie("__Secure-sid", sid, int(15*24*3600), "/", "", true, true)
+	}
+
+	injectUserContext(c, session.UserID)
+}
+
+func injectUserContext(c *gin.Context, userID string) {
+	ctx := WithUserID(c.Request.Context(), userID)
+	c.Request = c.Request.WithContext(ctx)
+	c.Set("userID", userID)
+	c.Next()
 }

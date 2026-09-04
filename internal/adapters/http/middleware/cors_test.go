@@ -50,7 +50,7 @@ func TestCORS_PostRequest(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200 from wrapped handler, got %d", rec.Code)
 	}
-	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Errorf("expected fallback origin *, got %s", rec.Header().Get("Access-Control-Allow-Origin"))
+	if rec.Header().Get("Access-Control-Allow-Origin") != "http://localhost:4200" {
+		t.Errorf("expected fallback origin http://localhost:4200, got %s", rec.Header().Get("Access-Control-Allow-Origin"))
 	}
 }

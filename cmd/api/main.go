@@ -41,12 +41,18 @@ func main() {
 	appRepo := postgres.NewApplicationRepository(db)
 	eventRepo := postgres.NewEventRepository(db)
 	tagRepo := postgres.NewTagRepository(db)
+	sessionRepo := postgres.NewSessionRepository(db)
+	apiKeyRepo := postgres.NewAPIKeyRepository(db)
+
+	// Auto-Migrate newly added tables for development safety
+	db.AutoMigrate(&postgres.SessionModel{}, &postgres.APIKeyModel{})
 
 	// Services
-	authService := services.NewAuthService(userRepo, cfg.JWTSecret, cfg.JWTExpiresIn)
+	authService := services.NewAuthService(userRepo, sessionRepo)
 	userService := services.NewUserService(userRepo)
 	appService := services.NewApplicationService(appRepo, eventRepo, tagRepo)
 	tagService := services.NewTagService(tagRepo)
+	apiKeyService := services.NewAPIKeyService(apiKeyRepo)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -54,9 +60,11 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService)
 	appHandler := handlers.NewApplicationHandler(appService)
 	tagHandler := handlers.NewTagHandler(tagService)
+	mcpHandler := handlers.NewMCPHandler(appService)
+	apiKeyHandler := handlers.NewAPIKeyHandler(apiKeyService)
 	healthHandler := handlers.NewHealthHandler()
 
-	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, appHandler, tagHandler, healthHandler, cfg.JWTSecret, cfg.ENV)
+	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, appHandler, tagHandler, mcpHandler, apiKeyHandler, healthHandler, sessionRepo, apiKeyRepo, cfg.ENV)
 
 	startHTTPServer(cfg, mux)
 }
@@ -109,7 +117,6 @@ func startHTTPServer(cfg *config.Config, handler *gin.Engine) {
 		}
 	}()
 
-	// Capture signals for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 

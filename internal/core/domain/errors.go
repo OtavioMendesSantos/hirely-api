@@ -11,5 +11,6 @@ var (
 	ErrTagNotFound             = errors.New("tag not found")
 	ErrTagAlreadyExists        = errors.New("tag with this name already exists")
 	ErrForbidden               = errors.New("permission denied")
+	ErrAPIKeyNotFound          = errors.New("api key not found")
 	ErrInvalidStatusTransition = errors.New("invalid status transition")
 )

@@ -3,14 +3,15 @@ package handlers
 import (
 	"errors"
 	"hirely-api/internal/adapters/http/dto"
-	"hirely-api/internal/adapters/logger"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
-	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+const SessionCookieName = "__Secure-sid"
 
 type AuthHandler struct {
 	authService *services.AuthService
@@ -32,42 +33,35 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		slog.Warn("Invalid payload on register",
-			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-			slog.String("operation", "RegisterUser"),
-			slog.String("error", err.Error()),
-		)
 		dto.HandleValidationError(c, err)
 		return
 	}
 
-	user, tokenString, err := h.authService.RegisterUser(c.Request.Context(), req.Name, req.Email, req.Password)
+	user, err := h.authService.RegisterUser(c.Request.Context(), req.Name, req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, domain.ErrEmailAlreadyExists) {
 			dto.WriteError(c, http.StatusConflict, "Email already registered", "ALREADY_EXISTS")
 			return
 		}
-		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(c, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
-			return
-		}
-
-		slog.Error("Error registering user",
-			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-			slog.String("operation", "RegisterUser"),
-			slog.String("error", err.Error()),
-			slog.Any("context", map[string]string{
-				"email": req.Email,
-			}),
-		)
 		dto.WriteError(c, http.StatusInternalServerError, "Internal server error", "INTERNAL")
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.AuthResponse{
-		Token: tokenString,
-		User:  user,
-	})
+	ip := c.ClientIP()
+	ua := c.GetHeader("User-Agent")
+	sessionToken, expiresAt, err := h.authService.CreateSession(c.Request.Context(), user.ID, &ip, &ua, false)
+	if err != nil {
+		dto.WriteError(c, http.StatusInternalServerError, "Failed to create session", "INTERNAL")
+		return
+	}
+
+	maxAge := int(time.Until(expiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 86400
+	}
+	c.SetCookie(SessionCookieName, sessionToken, maxAge, "/", "", true, true)
+
+	c.JSON(http.StatusCreated, gin.H{"user": user})
 }
 
 type LoginRequest struct {
@@ -79,40 +73,32 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		slog.Warn("Invalid payload on login",
-			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-			slog.String("operation", "Login"),
-			slog.String("error", err.Error()),
-		)
 		dto.HandleValidationError(c, err)
 		return
 	}
 
-	user, tokenString, err := h.authService.Login(c.Request.Context(), req.Email, req.Password, req.RememberMe)
+	user, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			dto.WriteError(c, http.StatusUnauthorized, "Invalid email or password", "UNAUTHENTICATED")
 			return
 		}
-		if errors.Is(err, domain.ErrInvalidInput) {
-			dto.WriteError(c, http.StatusBadRequest, "Invalid input parameters", "INVALID_ARGUMENT")
-			return
-		}
-
-		slog.Error("Internal error on login",
-			slog.String("traceId", logger.GetTraceID(c.Request.Context())),
-			slog.String("operation", "Login"),
-			slog.String("error", err.Error()),
-			slog.Any("context", map[string]string{
-				"email": req.Email,
-			}),
-		)
 		dto.WriteError(c, http.StatusInternalServerError, "Internal server error", "INTERNAL")
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.AuthResponse{
-		Token: tokenString,
-		User:  user,
-	})
+	ip := c.ClientIP()
+	ua := c.GetHeader("User-Agent")
+	sessionToken, expiresAt, err := h.authService.CreateSession(c.Request.Context(), user.ID, &ip, &ua, req.RememberMe)
+	if err != nil {
+		dto.WriteError(c, http.StatusInternalServerError, "Failed to create session", "INTERNAL")
+		return
+	}
+
+	maxAge := int(time.Until(expiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 86400
+	}
+	c.SetCookie(SessionCookieName, sessionToken, maxAge, "/", "", true, true)
+	c.JSON(http.StatusOK, gin.H{"user": user})
 }

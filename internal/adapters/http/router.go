@@ -3,6 +3,7 @@ package http
 import (
 	"hirely-api/internal/adapters/http/handlers"
 	"hirely-api/internal/adapters/http/middleware"
+	"hirely-api/internal/core/ports"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,8 +14,11 @@ func SetupRoutes(
 	userHandler *handlers.UserHandler,
 	appHandler *handlers.ApplicationHandler,
 	tagHandler *handlers.TagHandler,
+	mcpHandler *handlers.MCPHandler,
+	apiKeyHandler *handlers.APIKeyHandler,
 	healthHandler *handlers.HealthHandler,
-	jwtSecret string,
+	sessionRepo ports.SessionRepository,
+	apiKeyRepo ports.APIKeyRepository,
 	env string,
 ) *gin.Engine {
 	if env == "production" {
@@ -36,7 +40,7 @@ func SetupRoutes(
 		v1.POST("/auth/google/login", oauthHandler.GoogleLogin)
 
 		auth := v1.Group("/")
-		auth.Use(middleware.Auth(jwtSecret))
+		auth.Use(middleware.HybridAuth(sessionRepo, apiKeyRepo))
 		{
 			auth.GET("/users/me", userHandler.GetMe)
 
@@ -52,6 +56,15 @@ func SetupRoutes(
 			auth.POST("/users/:user_id/tags", tagHandler.Create)
 			auth.GET("/users/:user_id/tags", tagHandler.List)
 			auth.DELETE("/users/:user_id/tags/:tag_id", tagHandler.Delete)
+
+			// Rotas de API Keys
+			auth.GET("/users/me/api-keys", apiKeyHandler.List)
+			auth.POST("/users/me/api-keys", apiKeyHandler.Create)
+			auth.DELETE("/users/me/api-keys/:key_id", apiKeyHandler.Revoke)
+
+			// Rotas MCP
+			auth.GET("/mcp/sse", mcpHandler.HandleSSE())
+			auth.POST("/mcp/messages", mcpHandler.HandleMessage())
 		}
 	}
 

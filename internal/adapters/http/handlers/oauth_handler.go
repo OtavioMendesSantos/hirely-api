@@ -6,6 +6,7 @@ import (
 	"hirely-api/internal/core/services"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
@@ -76,15 +77,28 @@ func (h *OAuthHandler) GoogleLogin(c *gin.Context) {
 		return
 	}
 
-	user, jwtToken, err := h.authService.GoogleLogin(c.Request.Context(), userInfo.Email, userInfo.Name, userInfo.ID)
+	user, err := h.authService.GoogleLogin(c.Request.Context(), userInfo.Email, userInfo.Name, userInfo.ID)
 	if err != nil {
 		slog.Error("Failed to login with Google", slog.String("error", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Internal server error", "status": "INTERNAL"}})
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.AuthResponse{
-		Token: jwtToken,
-		User:  user,
+	ip := c.ClientIP()
+	ua := c.GetHeader("User-Agent")
+	sessionToken, expiresAt, err := h.authService.CreateSession(c.Request.Context(), user.ID, &ip, &ua, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"message": "Failed to create session", "status": "INTERNAL"}})
+		return
+	}
+
+	maxAge := int(time.Until(expiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 86400
+	}
+	c.SetCookie(SessionCookieName, sessionToken, maxAge, "/", "", true, true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": user,
 	})
 }
