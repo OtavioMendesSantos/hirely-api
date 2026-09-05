@@ -14,17 +14,16 @@ type Config struct {
 	ENV  string `env:"ENV" envDefault:"development"`
 
 	// Serverless
-	ReadTimeout  time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
-	WriteTimeout time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"20s"`
+	ReadTimeout time.Duration `env:"SERVER_READ_TIMEOUT" envDefault:"10s"`
+	// Must be disabled for long-lived SSE responses such as MCP connections.
+	WriteTimeout time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"0s"`
 	IdleTimeout  time.Duration `env:"SERVER_IDLE_TIMEOUT" envDefault:"120s"`
-
-	JWTSecret    string        `env:"JWT_SECRET,required"`
-	JWTExpiresIn time.Duration `envDefault:"24h"`
 
 	// Google OAuth
 	GoogleClientID string `env:"GOOGLE_CLIENT_ID,required"`
 	GoogleSecretID string `env:"GOOGLE_SECRET_ID,required"`
 	FrontEndURL    string `env:"FRONT_END_URL,required"`
+	BackEndURL     string `env:"BACK_END_URL,required"`
 
 	// Database
 	DB_HOST     string `env:"DB_HOST,required"`

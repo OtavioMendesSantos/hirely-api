@@ -56,5 +56,9 @@ func TestHybridAuth_MissingCredentials(t *testing.T) {
 	}
 }
 func (m *mockSessionRepo) RevokeAllByUserID(ctx context.Context, userID string) error { return nil }
-func (m *mockAPIKeyRepo) FindByUserID(ctx context.Context, userID string) ([]*domain.APIKey, error) { return nil, nil }
-func (m *mockAPIKeyRepo) FindByIDAndUserID(ctx context.Context, id, userID string) (*domain.APIKey, error) { return nil, nil }
+func (m *mockAPIKeyRepo) FindByUserID(ctx context.Context, userID string) ([]*domain.APIKey, error) {
+	return nil, nil
+}
+func (m *mockAPIKeyRepo) FindByIDAndUserID(ctx context.Context, id, userID string) (*domain.APIKey, error) {
+	return nil, nil
+}

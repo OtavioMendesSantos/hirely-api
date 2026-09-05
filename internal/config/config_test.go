@@ -3,12 +3,10 @@ package config
 import (
 	"os"
 	"testing"
-	"time"
 )
 
-func TestLoad_JWTExpiresInDefault(t *testing.T) {
+func TestLoad_Defaults(t *testing.T) {
 	// Ensure required env vars are set so Load() doesn't fail
-	os.Setenv("JWT_SECRET", "testsecret")
 	os.Setenv("DB_HOST", "localhost")
 	os.Setenv("DB_PORT", "5432")
 	os.Setenv("DB_USER", "postgres")
@@ -18,13 +16,14 @@ func TestLoad_JWTExpiresInDefault(t *testing.T) {
 	os.Setenv("GOOGLE_CLIENT_ID", "testclientid")
 	os.Setenv("GOOGLE_SECRET_ID", "testsecretid")
 	os.Setenv("FRONT_END_URL", "http://localhost:3000")
+	os.Setenv("BACK_END_URL", "http://localhost:8080/")
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("expected Load to succeed, got %v", err)
 	}
 
-	if cfg.JWTExpiresIn != 24*time.Hour {
-		t.Errorf("expected JWTExpiresIn to be 24h, got %v", cfg.JWTExpiresIn)
+	if cfg.Port != "8080" {
+		t.Errorf("expected Port to be 8080, got %v", cfg.Port)
 	}
 }

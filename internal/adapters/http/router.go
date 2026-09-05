@@ -62,7 +62,7 @@ func SetupRoutes(
 			auth.POST("/users/me/api-keys", apiKeyHandler.Create)
 			auth.DELETE("/users/me/api-keys/:key_id", apiKeyHandler.Revoke)
 
-			// Rotas MCP
+			// O SSE precisa de autenticação para iniciar e associar o usuário à sessão
 			auth.GET("/mcp/sse", mcpHandler.HandleSSE())
 			auth.POST("/mcp/messages", mcpHandler.HandleMessage())
 		}
