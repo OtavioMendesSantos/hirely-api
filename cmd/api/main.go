@@ -60,7 +60,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService)
 	appHandler := handlers.NewApplicationHandler(appService)
 	tagHandler := handlers.NewTagHandler(tagService)
-	mcpHandler := handlers.NewMCPHandler(appService, cfg.BackEndURL)
+	mcpHandler := handlers.NewMCPHandler(appService, tagService, cfg.BackEndURL)
 	apiKeyHandler := handlers.NewAPIKeyHandler(apiKeyService)
 	healthHandler := handlers.NewHealthHandler()
 
