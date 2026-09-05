@@ -17,6 +17,7 @@ func TestLoad_Defaults(t *testing.T) {
 	os.Setenv("GOOGLE_SECRET_ID", "testsecretid")
 	os.Setenv("FRONT_END_URL", "http://localhost:3000")
 	os.Setenv("BACK_END_URL", "http://localhost:8080/")
+	os.Setenv("AUTH_PEPPER", "test-pepper")
 
 	cfg, err := Load()
 	if err != nil {

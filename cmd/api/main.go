@@ -48,7 +48,7 @@ func main() {
 	db.AutoMigrate(&postgres.SessionModel{}, &postgres.APIKeyModel{})
 
 	// Services
-	authService := services.NewAuthService(userRepo, sessionRepo)
+	authService := services.NewAuthService(userRepo, sessionRepo, cfg.AuthPepper)
 	userService := services.NewUserService(userRepo)
 	appService := services.NewApplicationService(appRepo, eventRepo, tagRepo)
 	tagService := services.NewTagService(tagRepo)

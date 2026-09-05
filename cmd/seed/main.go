@@ -9,9 +9,9 @@ import (
 	"hirely-api/internal/adapters/storage/postgres"
 	"hirely-api/internal/config"
 	"hirely-api/internal/core/domain"
+	"hirely-api/internal/core/security"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -42,7 +42,11 @@ func main() {
 	fmt.Println("Starting Database Seed...")
 
 	// 2. Create a test user
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("12345678"), bcrypt.DefaultCost)
+	hashedPassword, err := security.HashPassword("12345678", cfg.AuthPepper)
+	if err != nil {
+		log.Fatal("Error hashing password:", err)
+	}
+	fmt.Printf("Hashed password: %s\n", hashedPassword)
 
 	user := postgres.UserModel{}
 

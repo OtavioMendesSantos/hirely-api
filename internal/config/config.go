@@ -19,6 +19,9 @@ type Config struct {
 	WriteTimeout time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"0s"`
 	IdleTimeout  time.Duration `env:"SERVER_IDLE_TIMEOUT" envDefault:"120s"`
 
+	// Security
+	AuthPepper string `env:"AUTH_PEPPER,required"`
+
 	// Google OAuth
 	GoogleClientID string `env:"GOOGLE_CLIENT_ID,required"`
 	GoogleSecretID string `env:"GOOGLE_SECRET_ID,required"`

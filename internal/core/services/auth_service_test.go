@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"hirely-api/internal/core/domain"
+	"hirely-api/internal/core/security"
 	"testing"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type mockUserRepositoryForAuthTest struct {
@@ -91,7 +90,7 @@ func (m *mockSessionRepository) RevokeByHash(ctx context.Context, hash string) e
 func TestAuthService_RegisterUser_Success(t *testing.T) {
 	userRepo := newMockUserRepositoryForAuthTest()
 	sessionRepo := newMockSessionRepository()
-	service := NewAuthService(userRepo, sessionRepo)
+	service := NewAuthService(userRepo, sessionRepo, "test-pepper")
 
 	user, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 	if err != nil {
@@ -108,15 +107,15 @@ func TestAuthService_RegisterUser_Success(t *testing.T) {
 		t.Errorf("unexpected user values: %+v", user)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte("password123")); err != nil {
-		t.Errorf("saved password hash does not match plain password: %v", err)
+	if !security.VerifyPassword(user.PasswordHash, "password123", "test-pepper") {
+		t.Errorf("saved password hash does not match plain password with pepper")
 	}
 }
 
 func TestAuthService_RegisterUser_InvalidInputs(t *testing.T) {
 	userRepo := newMockUserRepositoryForAuthTest()
 	sessionRepo := newMockSessionRepository()
-	service := NewAuthService(userRepo, sessionRepo)
+	service := NewAuthService(userRepo, sessionRepo, "test-pepper")
 
 	testCases := []struct {
 		name     string
@@ -145,7 +144,7 @@ func TestAuthService_RegisterUser_InvalidInputs(t *testing.T) {
 func TestAuthService_RegisterUser_EmailAlreadyExists(t *testing.T) {
 	userRepo := newMockUserRepositoryForAuthTest()
 	sessionRepo := newMockSessionRepository()
-	service := NewAuthService(userRepo, sessionRepo)
+	service := NewAuthService(userRepo, sessionRepo, "test-pepper")
 
 	_, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 	if err != nil {
@@ -164,7 +163,7 @@ func TestAuthService_RegisterUser_EmailAlreadyExists(t *testing.T) {
 func TestAuthService_Login_Success(t *testing.T) {
 	userRepo := newMockUserRepositoryForAuthTest()
 	sessionRepo := newMockSessionRepository()
-	service := NewAuthService(userRepo, sessionRepo)
+	service := NewAuthService(userRepo, sessionRepo, "test-pepper")
 
 	registeredUser, err := service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 	if err != nil {
@@ -183,7 +182,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 func TestAuthService_Login_InvalidInputs(t *testing.T) {
 	userRepo := newMockUserRepositoryForAuthTest()
 	sessionRepo := newMockSessionRepository()
-	service := NewAuthService(userRepo, sessionRepo)
+	service := NewAuthService(userRepo, sessionRepo, "test-pepper")
 
 	testCases := []struct {
 		name     string
@@ -208,7 +207,7 @@ func TestAuthService_Login_InvalidInputs(t *testing.T) {
 func TestAuthService_Login_UserNotFound(t *testing.T) {
 	userRepo := newMockUserRepositoryForAuthTest()
 	sessionRepo := newMockSessionRepository()
-	service := NewAuthService(userRepo, sessionRepo)
+	service := NewAuthService(userRepo, sessionRepo, "test-pepper")
 
 	_, err := service.Login(context.Background(), "nonexistent@hirely.app", "password123")
 	if !errors.Is(err, domain.ErrInvalidCredentials) {
@@ -219,7 +218,7 @@ func TestAuthService_Login_UserNotFound(t *testing.T) {
 func TestAuthService_Login_WrongPassword(t *testing.T) {
 	userRepo := newMockUserRepositoryForAuthTest()
 	sessionRepo := newMockSessionRepository()
-	service := NewAuthService(userRepo, sessionRepo)
+	service := NewAuthService(userRepo, sessionRepo, "test-pepper")
 
 	_, _ = service.RegisterUser(context.Background(), "Otavio Mendes", "otavio@hirely.app", "password123")
 

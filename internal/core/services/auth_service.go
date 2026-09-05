@@ -8,23 +8,25 @@ import (
 	"encoding/hex"
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/ports"
+	"hirely-api/internal/core/security"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
 	userRepo    ports.UserRepository
 	sessionRepo ports.SessionRepository
+	pepper      string
 }
 
-func NewAuthService(userRepo ports.UserRepository, sessionRepo ports.SessionRepository) *AuthService {
+func NewAuthService(userRepo ports.UserRepository, sessionRepo ports.SessionRepository, pepper string) *AuthService {
 	return &AuthService{
 		userRepo:    userRepo,
 		sessionRepo: sessionRepo,
+		pepper:      pepper,
 	}
 }
 
@@ -95,7 +97,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, name, email, plainPasswo
 		return nil, domain.ErrEmailAlreadyExists
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcrypt.DefaultCost)
+	hashedPassword, err := security.HashPassword(plainPassword, s.pepper)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +132,7 @@ func (s *AuthService) Login(ctx context.Context, email, plainPassword string) (*
 		return nil, domain.ErrInvalidCredentials
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(plainPassword))
-	if err != nil {
+	if !security.VerifyPassword(user.PasswordHash, plainPassword, s.pepper) {
 		return nil, domain.ErrInvalidCredentials
 	}
 
