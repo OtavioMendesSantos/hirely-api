@@ -37,6 +37,8 @@ type mcpApplicationView struct {
 	SalaryRange  string       `json:"salaryRange,omitempty"`
 	ContractType string       `json:"contractType,omitempty"`
 	Location     string       `json:"location,omitempty"`
+	Description  string       `json:"description,omitempty"`
+	Notes        string       `json:"notes,omitempty"`
 	AppliedAt    *time.Time   `json:"appliedAt,omitempty"`
 	CreatedAt    time.Time    `json:"createdAt"`
 	UpdatedAt    time.Time    `json:"updatedAt"`
@@ -52,6 +54,8 @@ func toMCPApplicationView(app *domain.Application) mcpApplicationView {
 		Status:      string(app.Status),
 		SalaryRange: app.SalaryRange,
 		Location:    app.Location,
+		Description: app.JobDescription,
+		Notes:       app.Notes,
 		AppliedAt:   app.AppliedAt,
 		CreatedAt:   app.CreatedAt,
 		UpdatedAt:   app.UpdatedAt,
@@ -171,6 +175,7 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			string(domain.ContractTypeOther),
 		), mcp.Description("Tipo de contrato: CLT, PJ, INTERNSHIP ou OTHER")),
 		mcp.WithString("location", mcp.Description("Local da vaga (cidade, remoto, híbrido, etc.)")),
+		mcp.WithString("description", mcp.Description("Descrição completa da vaga")),
 		mcp.WithString("appliedAt", mcp.Description("Data em que se candidatou em formato RFC3339, ex: 2026-09-05T10:00:00Z")),
 		mcp.WithString("notes", mcp.Description("Anotações livres sobre a vaga")),
 		mcp.WithString("tagIds", mcp.Description("IDs das tags (separadas por vírgula)")),
@@ -230,10 +235,11 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			JobURL:       url,
 			Status:       status,
 			ContractType: contractType,
-			SalaryRange:  strings.TrimSpace(request.GetString("salaryRange", "")),
-			Location:     strings.TrimSpace(request.GetString("location", "")),
-			Notes:        request.GetString("notes", ""),
-			AppliedAt:    appliedAt,
+			SalaryRange:    strings.TrimSpace(request.GetString("salaryRange", "")),
+			Location:       strings.TrimSpace(request.GetString("location", "")),
+			JobDescription: request.GetString("description", ""),
+			Notes:          request.GetString("notes", ""),
+			AppliedAt:      appliedAt,
 			TagIDs:       tagIDs,
 		})
 		if err != nil {
@@ -271,6 +277,7 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			string(domain.ContractTypeOther),
 		), mcp.Description("Tipo de contrato")),
 		mcp.WithString("location", mcp.Description("Local da vaga")),
+		mcp.WithString("description", mcp.Description("Descrição completa da vaga")),
 		mcp.WithString("appliedAt", mcp.Description("Data de candidatura (RFC3339)")),
 		mcp.WithString("notes", mcp.Description("Anotações livres sobre a vaga")),
 		mcp.WithString("tagIds", mcp.Description("IDs das tags (separadas por vírgula)")),
@@ -316,6 +323,9 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 		}
 		if val := request.GetString("location", ""); val != "" {
 			input.Location = &val
+		}
+		if val := request.GetString("description", ""); val != "" {
+			input.JobDescription = &val
 		}
 		if val := request.GetString("notes", ""); val != "" {
 			input.Notes = &val
