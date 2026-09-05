@@ -8,7 +8,6 @@ import (
 	"hirely-api/internal/core/services"
 	"log/slog"
 
-	"net/http"
 	"github.com/gin-gonic/gin"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -79,18 +78,9 @@ func NewMCPHandler(appService *services.ApplicationService) *MCPHandler {
 		return mcp.NewToolResultText(fmt.Sprintf("Vaga para %s na %s criada com sucesso no Kanban!", role, company)), nil
 	})
 
-	dynamicBasePath := func(r *http.Request, sessionID string) string {
-		scheme := "http"
-		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
-		}
-		return scheme + "://" + r.Host
-	}
-
 	sseServer := server.NewSSEServer(mcpServer,
 		server.WithSSEEndpoint("/v1/mcp/sse"),
 		server.WithMessageEndpoint("/v1/mcp/messages"),
-		server.WithDynamicBasePath(dynamicBasePath),
 	)
 
 	return &MCPHandler{
@@ -100,9 +90,22 @@ func NewMCPHandler(appService *services.ApplicationService) *MCPHandler {
 }
 
 func (h *MCPHandler) HandleSSE() gin.HandlerFunc {
-	return gin.WrapH(h.sseServer.SSEHandler())
+	return func(c *gin.Context) {
+		slog.Info("MCP SSE connection attempt", 
+			slog.String("path", c.Request.URL.Path),
+			slog.String("query", c.Request.URL.RawQuery),
+		)
+		gin.WrapH(h.sseServer.SSEHandler())(c)
+	}
 }
 
 func (h *MCPHandler) HandleMessage() gin.HandlerFunc {
-	return gin.WrapH(h.sseServer.MessageHandler())
+	return func(c *gin.Context) {
+		slog.Info("MCP Message received", 
+			slog.String("path", c.Request.URL.Path),
+			slog.String("query", c.Request.URL.RawQuery),
+			slog.String("sessionId", c.Query("sessionId")),
+		)
+		gin.WrapH(h.sseServer.MessageHandler())(c)
+	}
 }
