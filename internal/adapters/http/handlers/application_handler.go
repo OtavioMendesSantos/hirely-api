@@ -73,6 +73,12 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 		cType = &val
 	}
 
+	var wModality *domain.WorkModality
+	if req.WorkModality != nil {
+		val := domain.WorkModality(*req.WorkModality)
+		wModality = &val
+	}
+
 	input := services.CreateApplicationInput{
 		CompanyName:        req.CompanyName,
 		JobTitle:           req.JobTitle,
@@ -80,6 +86,7 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 		SalaryRange:        req.SalaryRange,
 		Status:             req.Status,
 		ContractType:       cType,
+		WorkModality:       wModality,
 		Location:           req.Location,
 		SubmittedDocuments: req.SubmittedDocuments,
 		JobDescription:     req.JobDescription,
@@ -272,6 +279,12 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 		cType = &val
 	}
 
+	var wModality *domain.WorkModality
+	if req.WorkModality != nil {
+		val := domain.WorkModality(*req.WorkModality)
+		wModality = &val
+	}
+
 	input := services.UpdateApplicationInput{
 		CompanyName:        req.CompanyName,
 		JobTitle:           req.JobTitle,
@@ -279,6 +292,7 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 		SalaryRange:        req.SalaryRange,
 		Status:             req.Status,
 		ContractType:       cType,
+		WorkModality:       wModality,
 		Location:           req.Location,
 		SubmittedDocuments: req.SubmittedDocuments,
 		JobDescription:     req.JobDescription,

@@ -21,6 +21,23 @@ func (c ContractType) IsValid() bool {
 	return false
 }
 
+type WorkModality string
+
+const (
+	WorkModalityRemote WorkModality = "REMOTE"
+	WorkModalityHybrid WorkModality = "HYBRID"
+	WorkModalityOnsite WorkModality = "ONSITE"
+)
+
+func (w WorkModality) IsValid() bool {
+	switch w {
+	case WorkModalityRemote, WorkModalityHybrid, WorkModalityOnsite:
+		return true
+	}
+	return false
+}
+
+
 type ApplicationStatus string
 
 const (
@@ -42,6 +59,7 @@ type Application struct {
 	SalaryRange        string            `json:"salaryRange,omitempty"`
 	Status             ApplicationStatus `json:"status"`
 	ContractType       *ContractType     `json:"contractType,omitempty"`
+	WorkModality       *WorkModality     `json:"workModality,omitempty"`
 	AppliedAt          *time.Time        `json:"appliedAt"`
 	Location           string            `json:"location"`
 	SubmittedDocuments []string          `json:"submittedDocuments"`

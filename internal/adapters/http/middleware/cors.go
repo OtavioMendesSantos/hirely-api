@@ -20,8 +20,10 @@ func CORS() gin.HandlerFunc {
 		}
 
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-		c.Header("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, X-Request-ID, X-Trace-ID")
-		c.Header("Access-Control-Expose-Headers", "Authorization, X-Trace-ID")
+		// Headers do transporte MCP Streamable HTTP (Mcp-Session-Id para
+		// sessões legadas; headers Mcp-* de metadata para o protocolo 2026-07-28).
+		c.Header("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, X-Request-ID, X-Trace-ID, Mcp-Session-Id, Mcp-Protocol-Version, Mcp-Method, Mcp-Name")
+		c.Header("Access-Control-Expose-Headers", "Authorization, X-Trace-ID, Mcp-Session-Id")
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Max-Age", "86400")
 

@@ -1,6 +1,8 @@
 package http
 
 import (
+	"time"
+
 	"hirely-api/internal/adapters/http/handlers"
 	"hirely-api/internal/adapters/http/middleware"
 	"hirely-api/internal/core/ports"
@@ -28,6 +30,9 @@ func SetupRoutes(
 
 	r.Use(middleware.Trace())
 	r.Use(middleware.CORS())
+
+	// Um único limitador compartilhado entre os verbos do endpoint MCP.
+	mcpLimiter := middleware.NewFixedWindowLimiter(120, time.Minute)
 
 	v1 := r.Group("/v1")
 	{
@@ -62,7 +67,19 @@ func SetupRoutes(
 			auth.POST("/users/me/api-keys", apiKeyHandler.Create)
 			auth.DELETE("/users/me/api-keys/:key_id", apiKeyHandler.Revoke)
 
-			// O SSE precisa de autenticação para iniciar e associar o usuário à sessão
+			// MCP — Transporte Streamable HTTP (spec MCP 2025-03-26+).
+			// POST /v1/mcp carrega os requests/notifications JSON-RPC e é a
+			// rota usada por clientes modernos (protocolo 2026-07-28,
+			// server/discover) e legados (initialize + Mcp-Session-Id).
+			// GET/DELETE existem para sessões legadas (<= 2025-11-25);
+			// clientes 2026-07-28 recebem 405 do próprio SDK.
+			auth.POST("/mcp", middleware.RateLimit(mcpLimiter), mcpHandler.HandleStreamable())
+			auth.GET("/mcp", middleware.RateLimit(mcpLimiter), mcpHandler.HandleStreamable())
+			auth.DELETE("/mcp", middleware.RateLimit(mcpLimiter), mcpHandler.HandleStreamable())
+
+			// MCP — Transporte legado HTTP+SSE (DEPRECADO no spec MCP).
+			// Mantido apenas para compatibilidade com clientes antigos;
+			// clientes novos devem usar POST /v1/mcp.
 			auth.GET("/mcp/sse", mcpHandler.HandleSSE())
 			auth.POST("/mcp/messages", mcpHandler.HandleMessage())
 		}

@@ -18,6 +18,7 @@ type CreateApplicationInput struct {
 	SalaryRange        string
 	Status             domain.ApplicationStatus
 	ContractType       *domain.ContractType
+	WorkModality       *domain.WorkModality
 	Location           string
 	SubmittedDocuments []string
 	JobDescription     string
@@ -33,6 +34,7 @@ type UpdateApplicationInput struct {
 	SalaryRange        *string
 	Status             *domain.ApplicationStatus
 	ContractType       *domain.ContractType
+	WorkModality       *domain.WorkModality
 	Location           *string
 	SubmittedDocuments []string
 	JobDescription     *string
@@ -88,6 +90,11 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, userID strin
 		return nil, domain.ErrInvalidInput
 	}
 	app.ContractType = input.ContractType
+
+	if input.WorkModality != nil && !input.WorkModality.IsValid() {
+		return nil, domain.ErrInvalidInput
+	}
+	app.WorkModality = input.WorkModality
 
 	app.JobURL = strings.TrimSpace(input.JobURL)
 	app.SalaryRange = strings.TrimSpace(input.SalaryRange)
@@ -296,6 +303,12 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, userID strin
 			return nil, domain.ErrInvalidInput
 		}
 		app.ContractType = input.ContractType
+	}
+	if input.WorkModality != nil {
+		if !input.WorkModality.IsValid() {
+			return nil, domain.ErrInvalidInput
+		}
+		app.WorkModality = input.WorkModality
 	}
 	if input.Location != nil {
 		app.Location = strings.TrimSpace(*input.Location)

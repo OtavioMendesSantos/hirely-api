@@ -8,6 +8,7 @@ import (
 	"hirely-api/internal/core/domain"
 	"hirely-api/internal/core/services"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -17,10 +18,14 @@ import (
 )
 
 type MCPHandler struct {
-	appService *services.ApplicationService
-	tagService *services.TagService
-	sseServer  *server.SSEServer
+	appService       *services.ApplicationService
+	tagService       *services.TagService
+	sseServer        *server.SSEServer // Transporte legado HTTP+SSE (deprecado no spec MCP)
+	streamableServer *server.StreamableHTTPServer
 }
+
+// maxMCPBodyBytes limita o tamanho do corpo JSON-RPC aceito no endpoint MCP.
+const maxMCPBodyBytes = 1 << 20 // 1 MiB
 
 type mcpTagView struct {
 	ID       string `json:"id"`
@@ -36,6 +41,7 @@ type mcpApplicationView struct {
 	Status       string       `json:"status"`
 	SalaryRange  string       `json:"salaryRange,omitempty"`
 	ContractType string       `json:"contractType,omitempty"`
+	WorkModality string       `json:"workModality,omitempty"`
 	Location     string       `json:"location,omitempty"`
 	Description  string       `json:"description,omitempty"`
 	Notes        string       `json:"notes,omitempty"`
@@ -62,6 +68,10 @@ func toMCPApplicationView(app *domain.Application) mcpApplicationView {
 	}
 	if app.ContractType != nil {
 		view.ContractType = string(*app.ContractType)
+	}
+
+	if app.WorkModality != nil {
+		view.WorkModality = string(*app.WorkModality)
 	}
 	if len(app.Tags) > 0 {
 		view.Tags = make([]mcpTagView, len(app.Tags))
@@ -174,6 +184,11 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			string(domain.ContractTypeInternship),
 			string(domain.ContractTypeOther),
 		), mcp.Description("Tipo de contrato: CLT, PJ, INTERNSHIP ou OTHER")),
+		mcp.WithString("workModality", mcp.Enum(
+			string(domain.WorkModalityRemote),
+			string(domain.WorkModalityHybrid),
+			string(domain.WorkModalityOnsite),
+		), mcp.Description("Modalidade de trabalho")),
 		mcp.WithString("location", mcp.Description("Local da vaga (cidade, remoto, híbrido, etc.)")),
 		mcp.WithString("description", mcp.Description("Descrição completa da vaga")),
 		mcp.WithString("appliedAt", mcp.Description("Data em que se candidatou em formato RFC3339, ex: 2026-09-05T10:00:00Z")),
@@ -229,12 +244,22 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			}
 		}
 
+		var workModality *domain.WorkModality
+		if wm := strings.TrimSpace(request.GetString("workModality", "")); wm != "" {
+			wmValue := domain.WorkModality(wm)
+			if !wmValue.IsValid() {
+				return mcp.NewToolResultError("Invalid workModality. Use one of: REMOTE, HYBRID, ONSITE"), nil
+			}
+			workModality = &wmValue
+		}
+
 		created, err := appService.CreateApplication(ctx, userID, services.CreateApplicationInput{
 			CompanyName:  company,
 			JobTitle:     role,
 			JobURL:       url,
 			Status:       status,
 			ContractType: contractType,
+			WorkModality: workModality,
 			SalaryRange:    strings.TrimSpace(request.GetString("salaryRange", "")),
 			Location:       strings.TrimSpace(request.GetString("location", "")),
 			JobDescription: request.GetString("description", ""),
@@ -320,6 +345,13 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 				return mcp.NewToolResultError("Invalid contractType"), nil
 			}
 			input.ContractType = &ctValue
+		}
+		if wm := strings.TrimSpace(request.GetString("workModality", "")); wm != "" {
+			wmValue := domain.WorkModality(wm)
+			if !wmValue.IsValid() {
+				return mcp.NewToolResultError("Invalid workModality"), nil
+			}
+			input.WorkModality = &wmValue
 		}
 		if val := request.GetString("location", ""); val != "" {
 			input.Location = &val
@@ -467,16 +499,32 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 		server.WithBaseURL(backEndURL),
 	)
 
+	// Transporte Streamable HTTP (spec MCP 2025-03-26+; suporta o protocolo
+	// 2026-07-28 nativamente via server/discover e o fluxo clássico via
+	// initialize para 2025-03-26/2025-06-18/2025-11-25).
+	//
+	// O mcp-go decide a "era" do protocolo por requisição a partir do header
+	// Mcp-Protocol-Version e do _meta do corpo, servindo as duas famílias de
+	// clientes no mesmo endpoint /v1/mcp. O SessionIdManager default
+	// (StatelessGeneratingSessionIdManager) gera Mcp-Session-Id para clientes
+	// legados sem validar existência, o que funciona bem em multi-instância no
+	// Railway; clientes 2026-07-28 são stateless e não recebem sessão.
+	streamableServer := server.NewStreamableHTTPServer(mcpServer,
+		server.WithEndpointPath("/v1/mcp"),
+		server.WithStreamableHTTPLogger(slog.Default()),
+	)
+
 	return &MCPHandler{
-		appService: appService,
-		tagService: tagService,
-		sseServer:  sseServer,
+		appService:       appService,
+		tagService:       tagService,
+		sseServer:        sseServer,
+		streamableServer: streamableServer,
 	}
 }
 
 func (h *MCPHandler) HandleSSE() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Info("MCP SSE connection attempt",
+		slog.Info("MCP SSE connection attempt (legacy transport)",
 			slog.String("path", c.Request.URL.Path),
 			slog.String("query", c.Request.URL.RawQuery),
 		)
@@ -486,11 +534,38 @@ func (h *MCPHandler) HandleSSE() gin.HandlerFunc {
 
 func (h *MCPHandler) HandleMessage() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		slog.Info("MCP Message received",
+		slog.Info("MCP Message received (legacy transport)",
 			slog.String("path", c.Request.URL.Path),
 			slog.String("query", c.Request.URL.RawQuery),
 			slog.String("sessionId", c.Query("sessionId")),
 		)
 		gin.WrapH(h.sseServer.MessageHandler())(c)
+	}
+}
+
+// HandleStreamable serve o transporte Streamable HTTP (spec MCP 2025-03-26+).
+//
+// O mcp-go aceita POST (requests/notifications JSON-RPC) e, para clientes com
+// sessões legadas (<= 2025-11-25), também GET (stream de notificações) e
+// DELETE (fim de sessão). Clientes do protocolo 2026-07-28 são stateless:
+// GET/DELETE recebem 405 do próprio SDK.
+func (h *MCPHandler) HandleStreamable() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Limita o corpo antes de repassar ao SDK: rejeita por Content-Length
+		// quando possível e usa MaxBytesReader como rede de segurança para
+		// corpos chunked (o SDK devolve erro JSON-RPC de parse se estourar).
+		if c.Request.ContentLength > maxMCPBodyBytes {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+				"jsonrpc": "2.0",
+				"id":      nil,
+				"error": gin.H{
+					"code":    -32000,
+					"message": "request body too large",
+				},
+			})
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxMCPBodyBytes)
+		gin.WrapH(h.streamableServer)(c)
 	}
 }
