@@ -45,3 +45,9 @@ go run cmd/seed/main.go
 Isso criará um usuário de teste (`teste@hirely.com`) e gerará diversas aplicações em diferentes estágios do funil para visualizar no dashboard.
 
 *(Consulte a pasta `docs/` para ler a especificação técnica detalhada da API e payloads de integração)*
+
+## Servidor MCP
+
+O backend expõe um servidor MCP (Model Context Protocol) para que assistentes/agentes gerenciem candidaturas e tags em nome do usuário autenticado — incluindo transporte/endpoint, ferramentas, exemplos de `curl`, configuração de cliente (OpenCode v2) e segurança.
+
+📄 **Ver documentação completa em [`docs/mcp.md`](docs/mcp.md).**
