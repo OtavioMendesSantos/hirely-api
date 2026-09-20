@@ -151,7 +151,6 @@ func TestApplicationHandler_CreateAndList_Success(t *testing.T) {
 		JobTitle:    "Senior Backend Engineer",
 		JobURL:      "https://linkedin.com/jobs/123",
 		Status:      domain.StatusApplied,
-		Location:    "Remote",
 	}
 	body, _ := json.Marshal(payload)
 

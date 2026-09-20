@@ -13,7 +13,6 @@ type CreateApplicationRequest struct {
 	Status             domain.ApplicationStatus `json:"status" binding:"required,oneof=TO_APPLY APPLIED INTERVIEW OFFER ACCEPTED REJECTED OTHER"`
 	ContractType       *string                  `json:"contract_type,omitempty" binding:"omitempty,oneof=CLT PJ INTERNSHIP OTHER"`
 	WorkModality       *string                  `json:"work_modality,omitempty" binding:"omitempty,oneof=REMOTE HYBRID ONSITE"`
-	Location           string                   `json:"location" binding:"omitempty,max=255"`
 	SubmittedDocuments []string                 `json:"submitted_documents" binding:"omitempty,dive,max=255"`
 	JobDescription     string                   `json:"job_description" binding:"omitempty"`
 	Notes              string                   `json:"notes" binding:"omitempty"`
@@ -29,7 +28,6 @@ type UpdateApplicationRequest struct {
 	Status             *domain.ApplicationStatus `json:"status" binding:"omitempty,oneof=TO_APPLY APPLIED INTERVIEW OFFER ACCEPTED REJECTED OTHER"`
 	ContractType       *string                   `json:"contract_type,omitempty" binding:"omitempty,oneof=CLT PJ INTERNSHIP OTHER"`
 	WorkModality       *string                   `json:"work_modality,omitempty" binding:"omitempty,oneof=REMOTE HYBRID ONSITE"`
-	Location           *string                   `json:"location" binding:"omitempty,max=255"`
 	SubmittedDocuments []string                  `json:"submitted_documents" binding:"omitempty,dive,max=255"`
 	JobDescription     *string                   `json:"job_description" binding:"omitempty"`
 	Notes              *string                   `json:"notes" binding:"omitempty"`

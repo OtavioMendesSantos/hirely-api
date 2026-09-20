@@ -42,7 +42,6 @@ type mcpApplicationView struct {
 	SalaryRange  string       `json:"salaryRange,omitempty"`
 	ContractType string       `json:"contractType,omitempty"`
 	WorkModality string       `json:"workModality,omitempty"`
-	Location     string       `json:"location,omitempty"`
 	Description  string       `json:"description,omitempty"`
 	Notes        string       `json:"notes,omitempty"`
 	AppliedAt    *time.Time   `json:"appliedAt,omitempty"`
@@ -59,7 +58,6 @@ func toMCPApplicationView(app *domain.Application) mcpApplicationView {
 		JobURL:      app.JobURL,
 		Status:      string(app.Status),
 		SalaryRange: app.SalaryRange,
-		Location:    app.Location,
 		Description: app.JobDescription,
 		Notes:       app.Notes,
 		AppliedAt:   app.AppliedAt,
@@ -122,7 +120,7 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 	mcpServer := server.NewMCPServer("Hirely-Cloud-MCP", "1.0.0")
 
 	readTool := mcp.NewTool("read_applications",
-		mcp.WithDescription("Lista as candidaturas de emprego do usuário com empresa, cargo, link, status, salário, local e datas."),
+		mcp.WithDescription("Lista as candidaturas de emprego do usuário com empresa, cargo, link, status, salário, modalidade e datas."),
 		mcp.WithString("search", mcp.Description("Filtra candidaturas por texto em empresa ou cargo")),
 		mcp.WithString("status", mcp.Enum(
 			string(domain.StatusToApply),
@@ -189,7 +187,6 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			string(domain.WorkModalityHybrid),
 			string(domain.WorkModalityOnsite),
 		), mcp.Description("Modalidade de trabalho")),
-		mcp.WithString("location", mcp.Description("Local da vaga (cidade, remoto, híbrido, etc.)")),
 		mcp.WithString("description", mcp.Description("Descrição completa da vaga")),
 		mcp.WithString("appliedAt", mcp.Description("Data em que se candidatou em formato RFC3339, ex: 2026-09-05T10:00:00Z")),
 		mcp.WithString("notes", mcp.Description("Anotações livres sobre a vaga")),
@@ -261,7 +258,6 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			ContractType: contractType,
 			WorkModality: workModality,
 			SalaryRange:    strings.TrimSpace(request.GetString("salaryRange", "")),
-			Location:       strings.TrimSpace(request.GetString("location", "")),
 			JobDescription: request.GetString("description", ""),
 			Notes:          request.GetString("notes", ""),
 			AppliedAt:      appliedAt,
@@ -301,7 +297,6 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			string(domain.ContractTypeInternship),
 			string(domain.ContractTypeOther),
 		), mcp.Description("Tipo de contrato")),
-		mcp.WithString("location", mcp.Description("Local da vaga")),
 		mcp.WithString("description", mcp.Description("Descrição completa da vaga")),
 		mcp.WithString("appliedAt", mcp.Description("Data de candidatura (RFC3339)")),
 		mcp.WithString("notes", mcp.Description("Anotações livres sobre a vaga")),
@@ -352,9 +347,6 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 				return mcp.NewToolResultError("Invalid workModality"), nil
 			}
 			input.WorkModality = &wmValue
-		}
-		if val := request.GetString("location", ""); val != "" {
-			input.Location = &val
 		}
 		if val := request.GetString("description", ""); val != "" {
 			input.JobDescription = &val

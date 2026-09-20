@@ -123,7 +123,7 @@ Para garantir a independência do banco de dados, a camada de domínio trata `Ap
 |                              OFFER, ACCEPTED, REJECTED)     |
 | - ContractType: ContractType (CLT, PJ, INTERNSHIP, OTHER)   |
 | - AppliedAt: time.Time (opcional)                           |
-| - Location: string (opcional)                               |
+| - WorkModality: WorkModality (REMOTE, HYBRID, ONSITE) (opcional)                               |
 | - SubmittedDocuments: []string (opcional)                   |
 | - JobDescription: string (opcional)                         |
 | - Notes: string (opcional)                                  |
@@ -180,7 +180,7 @@ No banco relacional PostgreSQL, as tabelas são normalizadas com chaves estrange
 | status (VARCHAR)          |       | created_at (TIMESTAMP)   |                  ^
 | contract_type (VARCHAR)   |       +--------------------------+                  |
 | applied_at (TIMESTAMP)    |                                                     |
-| location (VARCHAR)        |                                                     |
+| work_modality (VARCHAR)        |                                                     |
 | submitted_documents(JSONB)|                                                     |
 | job_description (TEXT)    |                                                     |
 | notes (TEXT)              |                                                     |
@@ -348,7 +348,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
   "salary_range": "15k - 20k",
   "status": "APPLIED",
   "contract_type": "CLT",
-  "location": "Remote (São Paulo/SP)",
+  "work_modality": "REMOTE",
   "submitted_documents": [
     "Resume v2.pdf",
     "Cover Letter.pdf"
@@ -373,7 +373,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
   "status": "APPLIED",
   "contractType": "CLT",
   "appliedAt": "2026-07-20T14:00:00Z",
-  "location": "Remote (São Paulo/SP)",
+  "work_modality": "REMOTE",
   "submittedDocuments": [
     "Resume v2.pdf",
     "Cover Letter.pdf"
@@ -417,7 +417,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
       "jobUrl": "https://linkedin.com/jobs/view/12345",
       "status": "APPLIED",
       "appliedAt": "2026-07-20T14:00:00Z",
-      "location": "Remote (São Paulo/SP)",
+      "work_modality": "REMOTE",
       "submittedDocuments": [
         "Resume v2.pdf"
       ],
@@ -464,7 +464,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
         "jobUrl": "https://linkedin.com/jobs/view/12345",
         "status": "TO_APPLY",
         "appliedAt": null,
-        "location": "Remote (São Paulo/SP)",
+        "work_modality": "REMOTE",
         "submittedDocuments": [],
         "jobDescription": "Development and architecture of microservices in Go...",
         "notes": "",
@@ -505,7 +505,7 @@ O endpoint de métricas e agregações aceita os seguintes parâmetros de consul
   "jobUrl": "https://linkedin.com/jobs/view/12345",
   "status": "INTERVIEW",
   "appliedAt": "2026-07-20T14:00:00Z",
-  "location": "Remote (São Paulo/SP)",
+  "work_modality": "REMOTE",
   "submittedDocuments": [
     "Resume v2.pdf",
     "Cover Letter.pdf"

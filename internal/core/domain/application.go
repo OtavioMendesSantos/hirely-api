@@ -61,7 +61,6 @@ type Application struct {
 	ContractType       *ContractType     `json:"contractType,omitempty"`
 	WorkModality       *WorkModality     `json:"workModality,omitempty"`
 	AppliedAt          *time.Time        `json:"appliedAt"`
-	Location           string            `json:"location"`
 	SubmittedDocuments []string          `json:"submittedDocuments"`
 	JobDescription     string            `json:"jobDescription"`
 	Notes              string            `json:"notes"`
