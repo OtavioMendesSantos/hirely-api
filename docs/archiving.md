@@ -42,6 +42,29 @@ The startup migrations add the archive field, event action, archive/activity
 indexes, and account for existing notes newer than `updated_at`. Equivalent DDL
 is provided in `migrations/003_application_archiving.sql`.
 
+## Automatic archiving
+
+Account preferences include `auto_archive_days`: only 0 (Never), 30, 60, and 90
+are valid. The default is 60, including users with no preference row and existing
+accounts. The preferences GET/PATCH endpoints return and update this field;
+omitting it preserves the current value, and an explicit zero saves Never.
+
+A Go service runs synchronously after migrations and before HTTP startup, then
+waits until 07:00 in `America/Sao_Paulo` each day. Each pass processes batches of
+100 for at most 60 seconds. Errors are logged without blocking API startup; the
+next startup or scheduled pass retries. There is no polling or external service
+to keep the API/database awake. A suspended process catches an expired timer on
+resumption; a restarted process catches up during startup. The scheduler uses
+calendar dates in Sao Paulo, including timezone transitions, and stops on SIGINT
+or SIGTERM. No exact execution time is promised while the infrastructure sleeps.
+
+Any status is eligible after the configured number of 24-hour days without
+activity. Editing, adding/deleting an event, or restoring resets activity;
+archiving does not. Never affects automatic processing only, so manual archive
+still works. Reducing the preference applies at the next pass, including old
+applications. Row locks with SKIP LOCKED avoid duplicate lifecycle events across
+instances. The separate preference DDL is `004_automatic_archiving.sql`.
+
 ## Verification
 
 Run `go test ./...`. To also run isolated PostgreSQL integration tests, set

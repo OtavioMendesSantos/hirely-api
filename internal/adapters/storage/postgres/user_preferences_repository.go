@@ -30,14 +30,15 @@ func (r *UserPreferencesRepository) Update(ctx context.Context, userID string, p
 	var preferences domain.UserPreferences
 	// One statement preserves omitted fields even when devices save concurrently.
 	err := r.db.WithContext(ctx).Raw(`
- INSERT INTO user_preferences (user_id, theme, confetti_enabled, created_at, updated_at)
- VALUES (?, COALESCE(?, 'system'), COALESCE(?, TRUE), NOW(), NOW())
+ INSERT INTO user_preferences (user_id, theme, confetti_enabled, auto_archive_days, created_at, updated_at)
+ VALUES (?, COALESCE(?, 'system'), COALESCE(?, TRUE), COALESCE(?, 60), NOW(), NOW())
  ON CONFLICT (user_id) DO UPDATE SET
   theme = COALESCE(?, user_preferences.theme),
   confetti_enabled = COALESCE(?, user_preferences.confetti_enabled),
+ auto_archive_days = COALESCE(?, user_preferences.auto_archive_days),
   updated_at = NOW()
- RETURNING user_id, theme, confetti_enabled, created_at, updated_at`,
-		userID, patch.Theme, patch.ConfettiEnabled, patch.Theme, patch.ConfettiEnabled).Scan(&preferences).Error
+ RETURNING user_id, theme, confetti_enabled, auto_archive_days, created_at, updated_at`,
+		userID, patch.Theme, patch.ConfettiEnabled, patch.AutoArchiveDays, patch.Theme, patch.ConfettiEnabled, patch.AutoArchiveDays).Scan(&preferences).Error
 	if err != nil {
 		return nil, err
 	}

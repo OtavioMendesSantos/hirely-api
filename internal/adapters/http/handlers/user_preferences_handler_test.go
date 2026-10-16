@@ -26,6 +26,9 @@ func (r *handlerPreferencesRepo) FindByUserID(_ context.Context, id string) (*do
 func (r *handlerPreferencesRepo) Update(_ context.Context, id string, patch domain.UpdateUserPreferences) (*domain.UserPreferences, error) {
 	r.userID, r.patch = id, patch
 	value := domain.DefaultUserPreferences(id)
+	if patch.AutoArchiveDays != nil {
+		value.AutoArchiveDays = *patch.AutoArchiveDays
+	}
 	if patch.Theme != nil {
 		value.Theme = *patch.Theme
 	}
@@ -44,6 +47,10 @@ func TestUserPreferencesHandler(t *testing.T) {
 		{"defaults", "GET", "", "account-a", 200},
 		{"theme", "PATCH", `{"theme":"dark"}`, "account-a", 200},
 		{"disable confetti", "PATCH", `{"confetti_enabled":false}`, "account-a", 200},
+		{"never archive", "PATCH", `{"auto_archive_days":0}`, "account-a", 200},
+		{"archive after 30", "PATCH", `{"auto_archive_days":30}`, "account-a", 200},
+		{"invalid archive days", "PATCH", `{"auto_archive_days":45}`, "account-a", 400},
+		{"invalid archive type", "PATCH", `{"auto_archive_days":"60"}`, "account-a", 400},
 		{"invalid theme", "PATCH", `{"theme":"sepia"}`, "account-a", 400},
 		{"invalid bool", "PATCH", `{"confetti_enabled":"false"}`, "account-a", 400},
 		{"unknown fields", "PATCH", `{"user_id":"another-account"}`, "account-a", 400},
@@ -76,6 +83,9 @@ func TestUserPreferencesHandler(t *testing.T) {
 				var preferences domain.UserPreferences
 				if err := json.Unmarshal(response.Body.Bytes(), &preferences); err != nil {
 					t.Fatal(err)
+				}
+				if test.name == "never archive" && (preferences.AutoArchiveDays != 0 || repo.patch.AutoArchiveDays == nil) {
+					t.Fatal("Never=0 was lost")
 				}
 				if test.name == "disable confetti" && (preferences.ConfettiEnabled || repo.patch.ConfettiEnabled == nil) {
 					t.Fatal("explicit false was lost")

@@ -25,6 +25,9 @@ func (r *preferencesRepoStub) Update(_ context.Context, id string, patch domain.
 	if existing := r.rows[id]; existing != nil {
 		*value = *existing
 	}
+	if patch.AutoArchiveDays != nil {
+		value.AutoArchiveDays = *patch.AutoArchiveDays
+	}
 	if patch.Theme != nil {
 		value.Theme = *patch.Theme
 	}
@@ -89,5 +92,33 @@ func TestPreferencesPropagateRepositoryErrors(t *testing.T) {
 	dark := "dark"
 	if _, err := service.Update(context.Background(), "user-a", domain.UpdateUserPreferences{Theme: &dark}); !errors.Is(err, repo.err) {
 		t.Fatal("write error swallowed")
+	}
+}
+
+func TestAutomaticArchivePreference(t *testing.T) {
+	repo := &preferencesRepoStub{rows: map[string]*domain.UserPreferences{}}
+	service := NewUserPreferencesService(repo)
+	ctx := context.Background()
+	defaults, err := service.Get(ctx, "user-a")
+	if err != nil || defaults.AutoArchiveDays != 60 {
+		t.Fatalf("missing default: %+v %v", defaults, err)
+	}
+	for _, days := range []int{0, 30, 60, 90} {
+		result, err := service.Update(ctx, "user-a", domain.UpdateUserPreferences{AutoArchiveDays: &days})
+		if err != nil || result.AutoArchiveDays != days {
+			t.Fatalf("could not save %d: %+v %v", days, result, err)
+		}
+	}
+	for _, days := range []int{-1, 1, 45, 365} {
+		if _, err := service.Update(ctx, "user-a", domain.UpdateUserPreferences{AutoArchiveDays: &days}); !errors.Is(err, domain.ErrInvalidInput) {
+			t.Fatalf("accepted %d: %v", days, err)
+		}
+	}
+	disabled := 0
+	_, _ = service.Update(ctx, "user-a", domain.UpdateUserPreferences{AutoArchiveDays: &disabled})
+	dark := "dark"
+	result, err := service.Update(ctx, "user-a", domain.UpdateUserPreferences{Theme: &dark})
+	if err != nil || result.AutoArchiveDays != 0 || result.Theme != "dark" {
+		t.Fatalf("partial update reset Never: %+v %v", result, err)
 	}
 }

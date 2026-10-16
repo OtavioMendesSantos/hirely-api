@@ -21,13 +21,15 @@ Response and example PATCH body:
 ```json
 {
   "theme": "system",
-  "confetti_enabled": true
+  "confetti_enabled": true,
+  "auto_archive_days": 60
 }
 ```
 
 `theme` accepts `light`, `dark`, or `system` (default). `confetti_enabled` accepts
 a boolean and defaults to `true`; an explicit `false` is saved. Unknown fields,
-invalid values/types, or malformed JSON return 400. Missing authentication returns
+invalid values/types, or malformed JSON return 400. `auto_archive_days` accepts
+only 0 (Never), 30, 60, or 90, defaulting to 60; an explicit zero is preserved. Missing authentication returns
 401; storage failures return 500. Timestamps are maintained internally.
 
 ## Frontend behavior

@@ -48,7 +48,7 @@ func (h *UserPreferencesHandler) Update(c *gin.Context) {
 		return
 	}
 	preferences, err := h.service.Update(c.Request.Context(), userID, domain.UpdateUserPreferences{
-		Theme: request.Theme, ConfettiEnabled: request.ConfettiEnabled,
+		Theme: request.Theme, ConfettiEnabled: request.ConfettiEnabled, AutoArchiveDays: request.AutoArchiveDays,
 	})
 	h.respond(c, preferences, err)
 }

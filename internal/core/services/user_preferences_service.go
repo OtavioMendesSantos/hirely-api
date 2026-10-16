@@ -35,7 +35,14 @@ func (s *UserPreferencesService) Update(ctx context.Context, userID string, patc
 	if patch.Theme != nil && *patch.Theme != "system" && *patch.Theme != "dark" && *patch.Theme != "light" {
 		return nil, domain.ErrInvalidInput
 	}
-	if patch.Theme == nil && patch.ConfettiEnabled == nil {
+	if patch.AutoArchiveDays != nil {
+		switch *patch.AutoArchiveDays {
+		case 0, 30, 60, 90:
+		default:
+			return nil, domain.ErrInvalidInput
+		}
+	}
+	if patch.Theme == nil && patch.ConfettiEnabled == nil && patch.AutoArchiveDays == nil {
 		return s.Get(ctx, userID)
 	}
 	return s.repo.Update(ctx, userID, patch)

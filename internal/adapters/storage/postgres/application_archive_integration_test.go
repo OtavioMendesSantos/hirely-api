@@ -161,3 +161,83 @@ func TestPostgresArchiveFilteringAndCursor(t *testing.T) {
 		t.Fatalf("archiving removed historical metrics: %+v %v", stats, err)
 	}
 }
+
+func TestPostgresAutomaticArchiveThresholdsAndNever(t *testing.T) {
+	db := archiveTestDB(t)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	for _, test := range []struct {
+		name   string
+		days   *int
+		age    time.Duration
+		status domain.ApplicationStatus
+		want   bool
+	}{
+		{"missing preference defaults to sixty", nil, 60 * 24 * time.Hour, domain.StatusInterview, true},
+		{"never", archiveDays(0), 100 * 24 * time.Hour, domain.StatusRejected, false},
+		{"thirty exact", archiveDays(30), 30 * 24 * time.Hour, domain.StatusApplied, true},
+		{"thirty recent", archiveDays(30), 30*24*time.Hour - time.Second, domain.StatusToApply, false},
+		{"sixty exact", archiveDays(60), 60 * 24 * time.Hour, domain.StatusAccepted, true},
+		{"ninety recent", archiveDays(90), 89 * 24 * time.Hour, domain.StatusOffer, false},
+		{"ninety exact", archiveDays(90), 90 * 24 * time.Hour, domain.StatusOther, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo, app := archiveFixture(t, db)
+			if err := db.Model(&ApplicationModel{}).Where("id = ?", app.ID).UpdateColumns(map[string]any{"updated_at": now.Add(-test.age), "status": test.status}).Error; err != nil {
+				t.Fatal(err)
+			}
+			if test.days != nil {
+				if _, err := NewUserPreferencesRepository(db).Update(context.Background(), app.UserID, domain.UpdateUserPreferences{AutoArchiveDays: test.days}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := repo.ArchiveDueBatch(context.Background(), now, 100); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := repo.FindByID(context.Background(), app.ID)
+			if err != nil || (loaded.ArchivedAt != nil) != test.want {
+				t.Fatalf("archive due: %+v %v", loaded, err)
+			}
+			if loaded.Status != test.status {
+				t.Fatal("archiver changed status")
+			}
+			if test.want {
+				if len(loaded.Events) != 1 || loaded.Events[0].Action != "ARCHIVED" {
+					t.Fatal("missing automatic archive event")
+				}
+				restored, err := repo.SetArchived(context.Background(), app.UserID, app.ID, false, now)
+				if err != nil || !restored.UpdatedAt.Equal(now) {
+					t.Fatalf("restore did not reset activity: %+v %v", restored, err)
+				}
+				if _, err := repo.ArchiveDueBatch(context.Background(), now, 100); err != nil {
+					t.Fatal(err)
+				}
+				fresh, _ := repo.FindByID(context.Background(), app.ID)
+				if fresh.ArchivedAt != nil || len(fresh.Events) != 2 {
+					t.Fatal("restored application was immediately archived again")
+				}
+			}
+			// Isolate each subcase from subsequent global batches.
+			if err := db.Where("id = ?", app.UserID).Delete(&UserModel{}).Error; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func archiveDays(days int) *int { return &days }
+
+func TestPostgresPreferenceUpsertPreservesNeverAndOtherFields(t *testing.T) {
+	db := archiveTestDB(t)
+	_, app := archiveFixture(t, db)
+	repo := NewUserPreferencesRepository(db)
+	disabled := false
+	preferences, err := repo.Update(context.Background(), app.UserID, domain.UpdateUserPreferences{AutoArchiveDays: archiveDays(0), ConfettiEnabled: &disabled})
+	if err != nil || preferences.AutoArchiveDays != 0 || preferences.ConfettiEnabled {
+		t.Fatalf("explicit zero/false lost: %+v %v", preferences, err)
+	}
+	dark := "dark"
+	preferences, err = repo.Update(context.Background(), app.UserID, domain.UpdateUserPreferences{Theme: &dark})
+	if err != nil || preferences.AutoArchiveDays != 0 || preferences.ConfettiEnabled || preferences.Theme != "dark" {
+		t.Fatalf("omitted fields overwritten: %+v %v", preferences, err)
+	}
+}

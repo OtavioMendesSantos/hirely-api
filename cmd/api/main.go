@@ -34,6 +34,8 @@ func main() {
 	logger.Setup(cfg.ENV, "hirely-api")
 	slog.Info("Starting API...", slog.String("operation", "SystemBoot"))
 
+	runContext, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 	db := initDB(cfg)
 
 	// Repositories
@@ -69,7 +71,17 @@ func main() {
 
 	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, preferencesHandler, appHandler, tagHandler, mcpHandler, apiKeyHandler, healthHandler, sessionRepo, apiKeyRepo, cfg.ENV)
 
-	startHTTPServer(cfg, mux)
+	scheduler, err := services.NewArchiveScheduler(appRepo, nil)
+	if err != nil {
+		slog.Error("Could not initialize archive scheduler", "error", err)
+		return
+	}
+	scheduler.RunOnce(runContext)
+	schedulerDone := make(chan struct{})
+	go func() { defer close(schedulerDone); scheduler.Run(runContext) }()
+	startHTTPServer(runContext, cfg, mux)
+	stop()
+	<-schedulerDone
 }
 
 func initDB(cfg *config.Config) *gorm.DB {
@@ -95,7 +107,7 @@ func initDB(cfg *config.Config) *gorm.DB {
 	return db
 }
 
-func startHTTPServer(cfg *config.Config, handler *gin.Engine) {
+func startHTTPServer(runContext context.Context, cfg *config.Config, handler *gin.Engine) {
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	srv := &http.Server{
 		Addr:         addr,
@@ -120,10 +132,7 @@ func startHTTPServer(cfg *config.Config, handler *gin.Engine) {
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	<-quit
+	<-runContext.Done()
 	slog.Info("Shutdown signal received...", slog.String("operation", "GracefulShutdown"))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
