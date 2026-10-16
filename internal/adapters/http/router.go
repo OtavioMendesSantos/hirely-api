@@ -14,6 +14,7 @@ func SetupRoutes(
 	authHandler *handlers.AuthHandler,
 	oauthHandler *handlers.OAuthHandler,
 	userHandler *handlers.UserHandler,
+	preferencesHandler *handlers.UserPreferencesHandler,
 	appHandler *handlers.ApplicationHandler,
 	tagHandler *handlers.TagHandler,
 	mcpHandler *handlers.MCPHandler,
@@ -48,6 +49,8 @@ func SetupRoutes(
 		auth.Use(middleware.HybridAuth(sessionRepo, apiKeyRepo))
 		{
 			auth.GET("/users/me", userHandler.GetMe)
+			auth.GET("/users/me/preferences", preferencesHandler.Get)
+			auth.PATCH("/users/me/preferences", preferencesHandler.Update)
 
 			auth.POST("/users/:user_id/applications", appHandler.Create)
 			auth.GET("/users/:user_id/applications", appHandler.List)

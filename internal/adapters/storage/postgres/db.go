@@ -64,7 +64,7 @@ func NewConnection(cfg DBConfig) (*gorm.DB, error) {
 	slog.Info("Executing database migrations", slog.String("operation", "DatabaseMigration"))
 	db.Exec("CREATE EXTENSION IF NOT EXISTS fuzzystrmatch")
 
-	err = db.AutoMigrate(&UserModel{}, &TagModel{}, &ApplicationModel{}, &EventModel{})
+	err = db.AutoMigrate(&UserModel{}, &UserPreferencesModel{}, &TagModel{}, &ApplicationModel{}, &EventModel{})
 	if err != nil {
 		return nil, fmt.Errorf("database migration failed: %w", err)
 	}

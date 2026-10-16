@@ -38,6 +38,7 @@ func main() {
 
 	// Repositories
 	userRepo := postgres.NewUserRepository(db)
+	preferencesRepo := postgres.NewUserPreferencesRepository(db)
 	appRepo := postgres.NewApplicationRepository(db)
 	eventRepo := postgres.NewEventRepository(db)
 	tagRepo := postgres.NewTagRepository(db)
@@ -50,6 +51,7 @@ func main() {
 	// Services
 	authService := services.NewAuthService(userRepo, sessionRepo, cfg.AuthPepper)
 	userService := services.NewUserService(userRepo)
+	preferencesService := services.NewUserPreferencesService(preferencesRepo)
 	appService := services.NewApplicationService(appRepo, eventRepo, tagRepo)
 	tagService := services.NewTagService(tagRepo)
 	apiKeyService := services.NewAPIKeyService(apiKeyRepo)
@@ -58,13 +60,14 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService)
 	oauthHandler := handlers.NewOAuthHandler(authService, cfg.GoogleClientID, cfg.GoogleSecretID, strings.TrimSuffix(cfg.FrontEndURL, "/")+"/auth/callback")
 	userHandler := handlers.NewUserHandler(userService)
+	preferencesHandler := handlers.NewUserPreferencesHandler(preferencesService)
 	appHandler := handlers.NewApplicationHandler(appService)
 	tagHandler := handlers.NewTagHandler(tagService)
 	mcpHandler := handlers.NewMCPHandler(appService, tagService, cfg.BackEndURL)
 	apiKeyHandler := handlers.NewAPIKeyHandler(apiKeyService)
 	healthHandler := handlers.NewHealthHandler()
 
-	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, appHandler, tagHandler, mcpHandler, apiKeyHandler, healthHandler, sessionRepo, apiKeyRepo, cfg.ENV)
+	mux := adapterHttp.SetupRoutes(authHandler, oauthHandler, userHandler, preferencesHandler, appHandler, tagHandler, mcpHandler, apiKeyHandler, healthHandler, sessionRepo, apiKeyRepo, cfg.ENV)
 
 	startHTTPServer(cfg, mux)
 }
