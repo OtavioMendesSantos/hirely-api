@@ -57,6 +57,8 @@ func SetupRoutes(
 			auth.GET("/users/:user_id/applications/grouped-by-status", appHandler.GroupedByStatus)
 			auth.GET("/users/:user_id/applications/:application_id", appHandler.GetByID)
 			auth.PATCH("/users/:user_id/applications/:application_id", appHandler.Update)
+			auth.POST("/users/:user_id/applications/:application_id/archive", appHandler.Archive)
+			auth.POST("/users/:user_id/applications/:application_id/restore", appHandler.Restore)
 			auth.DELETE("/users/:user_id/applications/:application_id", appHandler.Delete)
 			auth.POST("/users/:user_id/applications/:application_id/events", appHandler.AddEvent)
 			auth.GET("/users/:user_id/applications/stats", appHandler.GetStats)

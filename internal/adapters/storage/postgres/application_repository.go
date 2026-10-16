@@ -10,6 +10,7 @@ import (
 	"hirely-api/internal/core/ports"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ApplicationRepository struct {
@@ -81,7 +82,7 @@ func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string,
 			return db.Order("created_at asc")
 		}).
 		Preload("Tags").
-		Where("user_id = ?", userID)
+		Where("user_id = ? AND archived_at IS NULL", userID)
 
 	if search != "" {
 		query = query.Where("company_name ILIKE ? OR job_title ILIKE ?", "%"+search+"%", "%"+search+"%")
@@ -113,7 +114,7 @@ func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, use
 			return db.Order("created_at asc")
 		}).
 		Preload("Tags").
-		Where("user_id = ?", userID)
+		Where("user_id = ? AND archived_at IS NULL", userID)
 
 	if search != "" {
 		query = query.Where("company_name ILIKE ? OR job_title ILIKE ?", "%"+search+"%", "%"+search+"%")
@@ -142,6 +143,9 @@ func (r *ApplicationRepository) ListByUserIDWithFilters(ctx context.Context, use
 
 func (r *ApplicationRepository) Update(ctx context.Context, app *domain.Application) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockActiveApplication(tx, app.UserID, app.ID); err != nil {
+			return err
+		}
 		model := ApplicationFromDomain(app)
 		if err := tx.Omit("Events", "User", "Tags").Save(model).Error; err != nil {
 			return err
@@ -157,6 +161,9 @@ func (r *ApplicationRepository) Delete(ctx context.Context, id string) error {
 
 func (r *ApplicationRepository) UpdateStatus(ctx context.Context, app *domain.Application, event *domain.Event) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockActiveApplication(tx, app.UserID, app.ID); err != nil {
+			return err
+		}
 		appModel := ApplicationFromDomain(app)
 		if err := tx.Omit("Events", "User", "Tags").Save(appModel).Error; err != nil {
 			return err
@@ -338,3 +345,30 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 }
 
 var _ ports.ApplicationRepository = (*ApplicationRepository)(nil)
+
+// lockOwnedApplication serializes all edits, lifecycle changes, and event writes on the parent row.
+func lockOwnedApplication(tx *gorm.DB, userID, applicationID string) (*ApplicationModel, error) {
+	var model ApplicationModel
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", applicationID).Take(&model).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrApplicationNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if model.UserID != userID {
+		return nil, domain.ErrForbidden
+	}
+	return &model, nil
+}
+
+func lockActiveApplication(tx *gorm.DB, userID, applicationID string) (*ApplicationModel, error) {
+	model, err := lockOwnedApplication(tx, userID, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	if model.ArchivedAt != nil {
+		return nil, domain.ErrApplicationArchived
+	}
+	return model, nil
+}

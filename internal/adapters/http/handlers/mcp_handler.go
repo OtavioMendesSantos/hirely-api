@@ -46,6 +46,7 @@ type mcpApplicationView struct {
 	Notes        string       `json:"notes,omitempty"`
 	AppliedAt    *time.Time   `json:"appliedAt,omitempty"`
 	CreatedAt    time.Time    `json:"createdAt"`
+	ArchivedAt   *time.Time   `json:"archivedAt,omitempty"`
 	UpdatedAt    time.Time    `json:"updatedAt"`
 	Tags         []mcpTagView `json:"tags,omitempty"`
 }
@@ -62,6 +63,7 @@ func toMCPApplicationView(app *domain.Application) mcpApplicationView {
 		Notes:       app.Notes,
 		AppliedAt:   app.AppliedAt,
 		CreatedAt:   app.CreatedAt,
+		ArchivedAt:  app.ArchivedAt,
 		UpdatedAt:   app.UpdatedAt,
 	}
 	if app.ContractType != nil {
@@ -122,6 +124,7 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 	readTool := mcp.NewTool("read_applications",
 		mcp.WithDescription("Lista as candidaturas de emprego do usuário com empresa, cargo, link, status, salário, modalidade e datas."),
 		mcp.WithString("search", mcp.Description("Filtra candidaturas por texto em empresa ou cargo")),
+		mcp.WithString("archive_state", mcp.Enum("active", "archived", "all"), mcp.Description("Estado de arquivamento; padrão active")),
 		mcp.WithString("status", mcp.Enum(
 			string(domain.StatusToApply),
 			string(domain.StatusApplied),
@@ -144,13 +147,15 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 			statusFilters = []string{st}
 		}
 
-		apps, err := appService.ListApplications(ctx, userID, search, statusFilters, nil, "appliedAt", "desc")
+		page, err := appService.ListApplicationsPage(ctx, userID, domain.ApplicationQuery{
+			Search: search, Statuses: statusFilters, OrderBy: "applied_at", Order: "desc", ArchiveState: request.GetString("archive_state", "active"), Unpaged: true,
+		}, "")
 		if err != nil {
 			return mcp.NewToolResultError("Erro ao buscar candidaturas: " + err.Error()), nil
 		}
 
-		views := make([]mcpApplicationView, 0, len(apps))
-		for _, app := range apps {
+		views := make([]mcpApplicationView, 0, len(page.Applications))
+		for _, app := range page.Applications {
 			views = append(views, toMCPApplicationView(app))
 		}
 
@@ -251,17 +256,17 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 		}
 
 		created, err := appService.CreateApplication(ctx, userID, services.CreateApplicationInput{
-			CompanyName:  company,
-			JobTitle:     role,
-			JobURL:       url,
-			Status:       status,
-			ContractType: contractType,
-			WorkModality: workModality,
+			CompanyName:    company,
+			JobTitle:       role,
+			JobURL:         url,
+			Status:         status,
+			ContractType:   contractType,
+			WorkModality:   workModality,
 			SalaryRange:    strings.TrimSpace(request.GetString("salaryRange", "")),
 			JobDescription: request.GetString("description", ""),
 			Notes:          request.GetString("notes", ""),
 			AppliedAt:      appliedAt,
-			TagIDs:       tagIDs,
+			TagIDs:         tagIDs,
 		})
 		if err != nil {
 			return mcp.NewToolResultError("Falha ao inserir candidatura: " + err.Error()), nil
@@ -368,18 +373,18 @@ func NewMCPHandler(appService *services.ApplicationService, tagService *services
 		// For our case, if we get rawTags, we just split.
 		if rawTagsObj, ok := request.GetArguments()["tagIds"]; ok {
 			if rawTags, ok := rawTagsObj.(string); ok {
-			var tagIDs []string
-			if strings.TrimSpace(rawTags) != "" {
-				parts := strings.Split(rawTags, ",")
-				for _, p := range parts {
-					if t := strings.TrimSpace(p); t != "" {
-						tagIDs = append(tagIDs, t)
+				var tagIDs []string
+				if strings.TrimSpace(rawTags) != "" {
+					parts := strings.Split(rawTags, ",")
+					for _, p := range parts {
+						if t := strings.TrimSpace(p); t != "" {
+							tagIDs = append(tagIDs, t)
+						}
 					}
 				}
-			}
-			input.TagIDs = tagIDs
+				input.TagIDs = tagIDs
 			} else {
-			    input.TagIDs = []string{}
+				input.TagIDs = []string{}
 			}
 		}
 

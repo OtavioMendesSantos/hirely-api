@@ -37,7 +37,6 @@ func (w WorkModality) IsValid() bool {
 	return false
 }
 
-
 type ApplicationStatus string
 
 const (
@@ -50,6 +49,29 @@ const (
 	StatusOther     ApplicationStatus = "OTHER"
 )
 
+// ApplicationQuery is shared by HTTP and MCP reads. Limit zero keeps legacy unpaged reads.
+type ApplicationQuery struct {
+	Unpaged      bool
+	Search       string
+	Statuses     []string
+	TagIDs       []string
+	ArchiveState string
+	OrderBy      string
+	Order        string
+	Limit        int
+	Cursor       *ApplicationCursor
+}
+
+type ApplicationCursor struct {
+	Value *string `json:"value"`
+	ID    string  `json:"id"`
+}
+
+type ApplicationPage struct {
+	Applications  []*Application `json:"applications"`
+	NextPageToken string         `json:"next_page_token"`
+}
+
 type Application struct {
 	ID                 string            `json:"id"`
 	UserID             string            `json:"userId"`
@@ -60,6 +82,7 @@ type Application struct {
 	Status             ApplicationStatus `json:"status"`
 	ContractType       *ContractType     `json:"contractType,omitempty"`
 	WorkModality       *WorkModality     `json:"workModality,omitempty"`
+	ArchivedAt         *time.Time        `json:"archivedAt"`
 	AppliedAt          *time.Time        `json:"appliedAt"`
 	SubmittedDocuments []string          `json:"submittedDocuments"`
 	JobDescription     string            `json:"jobDescription"`

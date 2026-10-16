@@ -6,6 +6,7 @@ import (
 )
 
 type EventModel struct {
+	Action         string    `gorm:"type:varchar(20)"`
 	ID             string    `gorm:"type:uuid;primaryKey"`
 	ApplicationID  string    `gorm:"type:uuid;not null;index"`
 	Type           string    `gorm:"type:varchar(20);not null"`
@@ -21,6 +22,7 @@ func (EventModel) TableName() string {
 
 func (m *EventModel) ToDomain() *domain.Event {
 	return &domain.Event{
+		Action:         m.Action,
 		ID:             m.ID,
 		ApplicationID:  m.ApplicationID,
 		Type:           domain.EventType(m.Type),
@@ -33,6 +35,7 @@ func (m *EventModel) ToDomain() *domain.Event {
 
 func EventFromDomain(e *domain.Event) *EventModel {
 	return &EventModel{
+		Action:         e.Action,
 		ID:             e.ID,
 		ApplicationID:  e.ApplicationID,
 		Type:           string(e.Type),

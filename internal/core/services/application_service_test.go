@@ -248,3 +248,60 @@ func TestApplicationService_ListApplicationsGroupedByStatus(t *testing.T) {
 		t.Errorf("expected ErrInvalidInput when ordering by invalid column, got %v", err)
 	}
 }
+
+func (m *mockAppRepo) Query(ctx context.Context, userID string, input domain.ApplicationQuery) ([]*domain.Application, error) {
+	var list []*domain.Application
+	if len(input.Statuses) > 0 {
+		list, _ = m.ListByUserIDWithFilters(ctx, userID, input.Search, input.Statuses, input.TagIDs, input.OrderBy, input.Order)
+	} else {
+		list, _ = m.ListByUserID(ctx, userID, input.Search, input.TagIDs, input.OrderBy, input.Order)
+	}
+	result := make([]*domain.Application, 0, len(list))
+	for _, app := range list {
+		if input.ArchiveState == "all" || (input.ArchiveState == "archived") == (app.ArchivedAt != nil) {
+			result = append(result, app)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockAppRepo) SetArchived(ctx context.Context, userID, applicationID string, archived bool, now time.Time) (*domain.Application, error) {
+	app := m.apps[applicationID]
+	if app == nil {
+		return nil, domain.ErrApplicationNotFound
+	}
+	if app.UserID != userID {
+		return nil, domain.ErrForbidden
+	}
+	if (app.ArchivedAt != nil) == archived {
+		return app, nil
+	}
+	event := domain.NewAutomaticEvent("archive-event", app.ID, "Application archived.", "", "")
+	event.Action, event.CreatedAt = "ARCHIVED", now
+	if archived {
+		app.ArchivedAt = &now
+	} else {
+		app.ArchivedAt = nil
+		app.UpdatedAt = now
+		event.Action = "UNARCHIVED"
+		event.NewStatus = string(app.Status)
+	}
+	app.Events = append(app.Events, *event)
+	return app, nil
+}
+
+func (m *mockAppRepo) AddEvent(ctx context.Context, userID, applicationID string, event *domain.Event) error {
+	app := m.apps[applicationID]
+	if app == nil {
+		return domain.ErrApplicationNotFound
+	}
+	if app.UserID != userID {
+		return domain.ErrForbidden
+	}
+	if app.ArchivedAt != nil {
+		return domain.ErrApplicationArchived
+	}
+	app.Events = append(app.Events, *event)
+	app.UpdatedAt = event.CreatedAt
+	return nil
+}

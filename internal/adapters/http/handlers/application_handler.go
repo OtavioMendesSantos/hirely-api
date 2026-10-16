@@ -8,6 +8,7 @@ import (
 	"hirely-api/internal/core/services"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -144,7 +145,19 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 		}
 	}
 
-	apps, err := h.appService.ListApplications(c.Request.Context(), userID, search, statuses, tagIDs, orderBy, orderDir)
+	pageSize := 0
+	if value, provided := c.GetQuery("page_size"); provided {
+		var err error
+		pageSize, err = strconv.Atoi(value)
+		if err != nil || pageSize < 1 || pageSize > 100 {
+			applicationError(c, domain.ErrInvalidInput)
+			return
+		}
+	}
+	page, err := h.appService.ListApplicationsPage(c.Request.Context(), userID, domain.ApplicationQuery{
+		Search: search, Statuses: statuses, TagIDs: tagIDs, OrderBy: orderBy, Order: orderDir,
+		ArchiveState: c.Query("archive_state"), Limit: pageSize,
+	}, c.Query("page_token"))
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "Invalid input parameters", "status": "INVALID_ARGUMENT"}})
@@ -160,8 +173,8 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 	}
 
 	resp := dto.ListApplicationsResponse{
-		Applications:  apps,
-		NextPageToken: "",
+		Applications:  page.Applications,
+		NextPageToken: page.NextPageToken,
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -301,6 +314,10 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 
 	app, err := h.appService.UpdateApplication(c.Request.Context(), userID, appID, input)
 	if err != nil {
+		if errors.Is(err, domain.ErrApplicationArchived) {
+			applicationError(c, err)
+			return
+		}
 		if errors.Is(err, domain.ErrApplicationNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Application not found", "status": "NOT_FOUND"}})
 			return
@@ -378,6 +395,10 @@ func (h *ApplicationHandler) AddEvent(c *gin.Context) {
 
 	event, err := h.appService.AddManualEvent(c.Request.Context(), userID, appID, req.Description)
 	if err != nil {
+		if errors.Is(err, domain.ErrApplicationArchived) {
+			applicationError(c, err)
+			return
+		}
 		if errors.Is(err, domain.ErrApplicationNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"message": "Application not found", "status": "NOT_FOUND"}})
 			return

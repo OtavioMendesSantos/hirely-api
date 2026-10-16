@@ -12,6 +12,7 @@ const (
 )
 
 type Event struct {
+	Action         string    `json:"action,omitempty"`
 	ID             string    `json:"id"`
 	ApplicationID  string    `json:"applicationId"`
 	Type           EventType `json:"type"`

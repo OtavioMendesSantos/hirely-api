@@ -8,6 +8,9 @@ import (
 
 type ApplicationRepository interface {
 	Create(ctx context.Context, app *domain.Application) error
+	Query(ctx context.Context, userID string, query domain.ApplicationQuery) ([]*domain.Application, error)
+	SetArchived(ctx context.Context, userID, applicationID string, archived bool, now time.Time) (*domain.Application, error)
+	AddEvent(ctx context.Context, userID, applicationID string, event *domain.Event) error
 	FindByID(ctx context.Context, id string) (*domain.Application, error)
 	ListByUserID(ctx context.Context, userID string, search string, tagIDs []string, orderBy string, orderDir string) ([]*domain.Application, error)
 	ListByUserIDWithFilters(ctx context.Context, userID string, search string, statuses []string, tagIDs []string, orderBy string, orderDir string) ([]*domain.Application, error)

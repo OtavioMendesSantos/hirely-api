@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,6 +134,8 @@ func setupAppRouter(appService *services.ApplicationService, userID string) *gin
 	r.GET("/v1/users/:user_id/applications/grouped-by-status", handler.GroupedByStatus)
 	r.GET("/v1/users/:user_id/applications/:application_id", handler.GetByID)
 	r.PATCH("/v1/users/:user_id/applications/:application_id", handler.Update)
+	r.POST("/v1/users/:user_id/applications/:application_id/archive", handler.Archive)
+	r.POST("/v1/users/:user_id/applications/:application_id/restore", handler.Restore)
 	r.DELETE("/v1/users/:user_id/applications/:application_id", handler.Delete)
 	r.POST("/v1/users/:user_id/applications/:application_id/events", handler.AddEvent)
 	r.GET("/v1/users/:user_id/applications/stats", handler.GetStats)
@@ -371,5 +374,105 @@ func TestApplicationHandler_GetStats_Success(t *testing.T) {
 	}
 	if len(resp.TopTags) != 1 || resp.TopTags[0].TagName != "Backend" {
 		t.Errorf("unexpected top tags: %+v", resp.TopTags)
+	}
+}
+
+func (m *mockAppRepoForHandlerTest) Query(ctx context.Context, userID string, input domain.ApplicationQuery) ([]*domain.Application, error) {
+	var list []*domain.Application
+	if len(input.Statuses) > 0 {
+		list, _ = m.ListByUserIDWithFilters(ctx, userID, input.Search, input.Statuses, input.TagIDs, input.OrderBy, input.Order)
+	} else {
+		list, _ = m.ListByUserID(ctx, userID, input.Search, input.TagIDs, input.OrderBy, input.Order)
+	}
+	result := make([]*domain.Application, 0, len(list))
+	for _, app := range list {
+		if input.ArchiveState == "all" || (input.ArchiveState == "archived") == (app.ArchivedAt != nil) {
+			result = append(result, app)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockAppRepoForHandlerTest) SetArchived(ctx context.Context, userID, applicationID string, archived bool, now time.Time) (*domain.Application, error) {
+	app := m.apps[applicationID]
+	if app == nil {
+		return nil, domain.ErrApplicationNotFound
+	}
+	if app.UserID != userID {
+		return nil, domain.ErrForbidden
+	}
+	if (app.ArchivedAt != nil) == archived {
+		return app, nil
+	}
+	event := domain.NewAutomaticEvent("archive-event", app.ID, "Application archived.", "", "")
+	event.Action, event.CreatedAt = "ARCHIVED", now
+	if archived {
+		app.ArchivedAt = &now
+	} else {
+		app.ArchivedAt = nil
+		app.UpdatedAt = now
+		event.Action = "UNARCHIVED"
+		event.NewStatus = string(app.Status)
+	}
+	app.Events = append(app.Events, *event)
+	return app, nil
+}
+
+func (m *mockAppRepoForHandlerTest) AddEvent(ctx context.Context, userID, applicationID string, event *domain.Event) error {
+	app := m.apps[applicationID]
+	if app == nil {
+		return domain.ErrApplicationNotFound
+	}
+	if app.UserID != userID {
+		return domain.ErrForbidden
+	}
+	if app.ArchivedAt != nil {
+		return domain.ErrApplicationArchived
+	}
+	app.Events = append(app.Events, *event)
+	app.UpdatedAt = event.CreatedAt
+	return nil
+}
+
+func TestApplicationArchiveHTTP(t *testing.T) {
+	repo := newMockAppRepoForHandlerTest()
+	service := services.NewApplicationService(repo, newMockEventRepoForHandlerTest(), newMockTagRepo())
+	app := domain.NewApplication("application-a", "user-a", "Acme", "Engineer", domain.StatusOffer)
+	repo.apps[app.ID] = app
+	router := setupAppRouter(service, "user-a")
+	request := func(method, path, body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+	base := "/v1/users/user-a/applications/" + app.ID
+	if rec := request("POST", base+"/archive", ""); rec.Code != 200 {
+		t.Fatalf("archive: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, method := range []string{"PATCH", "POST"} {
+		path, body := base, `{"notes":"changed"}`
+		if method == "POST" {
+			path += "/events"
+			body = `{"description":"note"}`
+		}
+		if rec := request(method, path, body); rec.Code != 409 {
+			t.Fatalf("archived mutation: %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	if rec := request("GET", "/v1/users/user-a/applications?archive_state=archived", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), "archivedAt") {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, query := range []string{"archive_state=bad", "archive_state=archived&page_size=0", "page_size=101", "page_size=no", "archive_state=archived&page_token=invalid"} {
+		if rec := request("GET", "/v1/users/user-a/applications?"+query, ""); rec.Code != 400 {
+			t.Fatalf("invalid query accepted: %s %d", query, rec.Code)
+		}
+	}
+	if rec := request("POST", base+"/restore", ""); rec.Code != 200 || app.ArchivedAt != nil || app.Status != domain.StatusOffer {
+		t.Fatalf("restore: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := request("POST", "/v1/users/someone-else/applications/"+app.ID+"/archive", ""); rec.Code != 403 {
+		t.Fatalf("isolation: %d", rec.Code)
 	}
 }

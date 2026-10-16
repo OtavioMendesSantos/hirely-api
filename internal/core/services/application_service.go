@@ -174,6 +174,8 @@ func normalizeOrderOptions(orderBy, orderDir string) (string, string, bool) {
 		orderBy = "job_title"
 	case "updated_at", "updatedat", "update_time":
 		orderBy = "updated_at"
+	case "archived_at", "archivedat":
+		orderBy = "archived_at"
 	case "applied_at", "appliedat", "apply_time":
 		orderBy = "applied_at"
 	default:
@@ -275,6 +277,9 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, userID strin
 		return nil, err
 	}
 
+	if app.ArchivedAt != nil {
+		return nil, domain.ErrApplicationArchived
+	}
 	if input.CompanyName != nil {
 		trimName := strings.TrimSpace(*input.CompanyName)
 		if trimName == "" {
@@ -386,8 +391,11 @@ func (s *ApplicationService) AddManualEvent(ctx context.Context, userID string, 
 		return nil, err
 	}
 
+	if app.ArchivedAt != nil {
+		return nil, domain.ErrApplicationArchived
+	}
 	event := domain.NewManualEvent(uuid.NewString(), app.ID, description)
-	if err := s.eventRepo.Create(ctx, event); err != nil {
+	if err := s.appRepo.AddEvent(ctx, userID, app.ID, event); err != nil {
 		return nil, err
 	}
 	return event, nil

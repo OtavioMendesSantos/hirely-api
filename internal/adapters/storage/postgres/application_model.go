@@ -16,6 +16,7 @@ type ApplicationModel struct {
 	Status             domain.ApplicationStatus `gorm:"type:varchar(50);not null;index"`
 	ContractType       *string                  `gorm:"type:varchar(20);check:contract_type IN ('CLT', 'PJ', 'INTERNSHIP', 'OTHER')"`
 	WorkModality       *string                  `gorm:"type:varchar(20);check:work_modality IN ('REMOTE', 'HYBRID', 'ONSITE')"`
+	ArchivedAt         *time.Time               `gorm:"type:timestamptz;index"`
 	AppliedAt          *time.Time               `gorm:"type:timestamp"`
 	SubmittedDocuments []string                 `gorm:"type:jsonb;serializer:json"`
 	JobDescription     string                   `gorm:"type:text"`
@@ -57,6 +58,7 @@ func (m *ApplicationModel) ToDomain() *domain.Application {
 		Status:             m.Status,
 		ContractType:       (*domain.ContractType)(m.ContractType),
 		WorkModality:       (*domain.WorkModality)(m.WorkModality),
+		ArchivedAt:         m.ArchivedAt,
 		AppliedAt:          m.AppliedAt,
 		SubmittedDocuments: m.SubmittedDocuments,
 		JobDescription:     m.JobDescription,
@@ -95,6 +97,7 @@ func ApplicationFromDomain(a *domain.Application) *ApplicationModel {
 		Status:             a.Status,
 		ContractType:       (*string)(a.ContractType),
 		WorkModality:       (*string)(a.WorkModality),
+		ArchivedAt:         a.ArchivedAt,
 		AppliedAt:          a.AppliedAt,
 		SubmittedDocuments: a.SubmittedDocuments,
 		JobDescription:     a.JobDescription,
