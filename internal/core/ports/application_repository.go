@@ -8,6 +8,7 @@ import (
 
 type ApplicationRepository interface {
 	Create(ctx context.Context, app *domain.Application) error
+	CountQuery(ctx context.Context, userID string, query domain.ApplicationQuery) (int64, error)
 	Query(ctx context.Context, userID string, query domain.ApplicationQuery) ([]*domain.Application, error)
 	SetArchived(ctx context.Context, userID, applicationID string, archived bool, now time.Time) (*domain.Application, error)
 	AddEvent(ctx context.Context, userID, applicationID string, event *domain.Event) error

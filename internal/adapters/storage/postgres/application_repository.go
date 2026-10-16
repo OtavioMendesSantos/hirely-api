@@ -230,12 +230,7 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 	stats.KPIs.Rejections.Count = stats.FunnelByStatus[string(domain.StatusRejected)]
 
 	var advancedRejectionsCount int64
-	queryAdv := r.db.WithContext(ctx).Table("applications a").
-		Joins("JOIN events e ON a.id = e.application_id").
-		Where("a.user_id = ?", userID).
-		Where("a.status = ?", domain.StatusRejected).
-		Where("e.new_status IN (?) OR e.previous_status IN (?)", []string{string(domain.StatusInterview), string(domain.StatusOffer)}, []string{string(domain.StatusInterview), string(domain.StatusOffer)})
-
+	queryAdv := applyApplicationMetric(r.db.WithContext(ctx).Table("applications a").Where("a.user_id = ?", userID), "advanced_rejections", time.Now())
 	if startDate != nil {
 		queryAdv = queryAdv.Where("a.created_at >= ?", startDate)
 	}
@@ -257,11 +252,7 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 	}
 
 	var ghostedCount int64
-	queryGhosted := r.db.WithContext(ctx).Model(&ApplicationModel{}).
-		Where("user_id = ?", userID).
-		Where("status = ?", domain.StatusApplied).
-		Where("updated_at <= ?", time.Now().Add(-30*24*time.Hour))
-
+	queryGhosted := applyApplicationMetric(r.db.WithContext(ctx).Table("applications a").Where("a.user_id = ?", userID), "ghosting", time.Now())
 	if startDate != nil {
 		queryGhosted = queryGhosted.Where("created_at >= ?", startDate)
 	}

@@ -27,6 +27,14 @@ func (s *ApplicationService) SetArchived(ctx context.Context, userID, applicatio
 }
 
 func normalizeApplicationQuery(query domain.ApplicationQuery) (domain.ApplicationQuery, error) {
+	if query.StartDate != nil && query.EndDate != nil && query.StartDate.After(*query.EndDate) {
+		return query, domain.ErrInvalidInput
+	}
+	switch query.Metric {
+	case "", "interviews", "rejections", "direct_rejections", "advanced_rejections", "ghosting":
+	default:
+		return query, domain.ErrInvalidInput
+	}
 	query.Search = strings.TrimSpace(query.Search)
 	if query.ArchiveState == "" {
 		query.ArchiveState = "active"
@@ -125,11 +133,20 @@ func (s *ApplicationService) ListApplicationsPage(ctx context.Context, userID st
 		}
 		query.Cursor = &decoded.Cursor
 	}
+	query.EvaluatedAt = time.Now().UTC()
 	apps, err := s.appRepo.Query(ctx, userID, query)
 	if err != nil {
 		return nil, err
 	}
-	page := &domain.ApplicationPage{Applications: apps}
+	page := &domain.ApplicationPage{Applications: apps, TotalCount: int64(len(apps))}
+	if query.Limit > 0 {
+		countQuery := query
+		countQuery.Cursor = nil
+		page.TotalCount, err = s.appRepo.CountQuery(ctx, userID, countQuery)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if query.Limit > 0 && len(apps) > query.Limit {
 		page.Applications = apps[:query.Limit]
 		cursor := applicationCursor(page.Applications[len(page.Applications)-1], query.OrderBy)

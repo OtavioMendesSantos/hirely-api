@@ -10,22 +10,8 @@ import (
 // archived, rejected, and reverted applications, without duplicating repeat visits.
 const interviewCountsSQL = `
  SELECT
-  COUNT(*) FILTER (WHERE
-   a.status IN ('INTERVIEW', 'OFFER', 'ACCEPTED') OR EXISTS (
-    SELECT 1 FROM events e WHERE e.application_id = a.id AND (
-     e.previous_status IN ('INTERVIEW', 'OFFER', 'ACCEPTED') OR
-     e.new_status IN ('INTERVIEW', 'OFFER', 'ACCEPTED')
-    )
-   )
-  ) AS interview_count,
-  COUNT(*) FILTER (WHERE
-   a.status <> 'TO_APPLY' OR EXISTS (
-    SELECT 1 FROM events e WHERE e.application_id = a.id AND (
-     e.previous_status IN ('APPLIED', 'INTERVIEW', 'OFFER', 'ACCEPTED', 'REJECTED', 'OTHER') OR
-     e.new_status IN ('APPLIED', 'INTERVIEW', 'OFFER', 'ACCEPTED', 'REJECTED', 'OTHER')
-    )
-   )
-  ) AS applied_count
+  COUNT(*) FILTER (WHERE ` + reachedInterviewPredicate + `) AS interview_count,
+  COUNT(*) FILTER (WHERE ` + appliedHistoryPredicate + `) AS applied_count
  FROM applications a
  WHERE a.user_id = ?`
 

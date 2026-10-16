@@ -40,6 +40,7 @@ type CreateManualEventRequest struct {
 }
 
 type ListApplicationsResponse struct {
+	TotalCount    int64                 `json:"total_count"`
 	Applications  []*domain.Application `json:"applications"`
 	NextPageToken string                `json:"next_page_token"`
 }

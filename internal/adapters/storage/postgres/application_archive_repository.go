@@ -9,23 +9,7 @@ import (
 )
 
 func (r *ApplicationRepository) Query(ctx context.Context, userID string, input domain.ApplicationQuery) ([]*domain.Application, error) {
-	query := r.db.WithContext(ctx).Model(&ApplicationModel{}).Where("user_id = ?", userID)
-	switch input.ArchiveState {
-	case "archived":
-		query = query.Where("archived_at IS NOT NULL")
-	case "all":
-	default:
-		query = query.Where("archived_at IS NULL")
-	}
-	if input.Search != "" {
-		query = query.Where("(company_name ILIKE ? OR job_title ILIKE ?)", "%"+input.Search+"%", "%"+input.Search+"%")
-	}
-	if len(input.Statuses) > 0 {
-		query = query.Where("status IN ?", input.Statuses)
-	}
-	if len(input.TagIDs) > 0 {
-		query = query.Where("id IN (SELECT application_id FROM application_tags WHERE tag_id IN ?)", input.TagIDs)
-	}
+	query := r.filteredApplications(ctx, userID, input)
 	// Column/direction are normalized again at the storage boundary before interpolation.
 	column := input.OrderBy
 	switch column {
@@ -146,4 +130,38 @@ func (r *ApplicationRepository) AddEvent(ctx context.Context, userID, applicatio
 		}
 		return tx.Model(model).UpdateColumn("updated_at", gorm.Expr("GREATEST(updated_at, ?)", event.CreatedAt.UTC())).Error
 	})
+}
+
+func (r *ApplicationRepository) filteredApplications(ctx context.Context, userID string, input domain.ApplicationQuery) *gorm.DB {
+	query := r.db.WithContext(ctx).Model(&ApplicationModel{}).Table("applications a").Where("a.user_id = ?", userID)
+	switch input.ArchiveState {
+	case "archived":
+		query = query.Where("archived_at IS NOT NULL")
+	case "all":
+	default:
+		query = query.Where("archived_at IS NULL")
+	}
+	if input.Search != "" {
+		query = query.Where("(company_name ILIKE ? OR job_title ILIKE ?)", "%"+input.Search+"%", "%"+input.Search+"%")
+	}
+	if len(input.Statuses) > 0 {
+		query = query.Where("status IN ?", input.Statuses)
+	}
+	if len(input.TagIDs) > 0 {
+		query = query.Where("id IN (SELECT application_id FROM application_tags WHERE tag_id IN ?)", input.TagIDs)
+	}
+	if input.StartDate != nil {
+		query = query.Where("a.created_at >= ?", input.StartDate)
+	}
+	if input.EndDate != nil {
+		query = query.Where("a.created_at <= ?", input.EndDate)
+	}
+	query = applyApplicationMetric(query, input.Metric, input.EvaluatedAt)
+	return query
+}
+
+func (r *ApplicationRepository) CountQuery(ctx context.Context, userID string, input domain.ApplicationQuery) (int64, error) {
+	var count int64
+	err := r.filteredApplications(ctx, userID, input).Count(&count).Error
+	return count, err
 }

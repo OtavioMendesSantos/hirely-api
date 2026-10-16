@@ -51,6 +51,10 @@ const (
 
 // ApplicationQuery is shared by HTTP and MCP reads. Limit zero keeps legacy unpaged reads.
 type ApplicationQuery struct {
+	StartDate    *time.Time
+	EndDate      *time.Time
+	Metric       string
+	EvaluatedAt  time.Time `json:"-"`
 	Unpaged      bool
 	Search       string
 	Statuses     []string
@@ -68,6 +72,7 @@ type ApplicationCursor struct {
 }
 
 type ApplicationPage struct {
+	TotalCount    int64          `json:"total_count"`
 	Applications  []*Application `json:"applications"`
 	NextPageToken string         `json:"next_page_token"`
 }

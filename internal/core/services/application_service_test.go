@@ -323,3 +323,10 @@ func (m *mockAppRepo) DeleteEvent(ctx context.Context, userID, applicationID, ev
 	}
 	return domain.ErrEventNotFound
 }
+
+func (m *mockAppRepo) CountQuery(ctx context.Context, userID string, input domain.ApplicationQuery) (int64, error) {
+	input.Cursor = nil
+	input.Limit = 0
+	apps, err := m.Query(ctx, userID, input)
+	return int64(len(apps)), err
+}

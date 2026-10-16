@@ -154,9 +154,20 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 			return
 		}
 	}
+	startDate, err := parseApplicationDate(c.Query("start_date"), false)
+	if err != nil {
+		applicationError(c, domain.ErrInvalidInput)
+		return
+	}
+	endDate, err := parseApplicationDate(c.Query("end_date"), true)
+	if err != nil {
+		applicationError(c, domain.ErrInvalidInput)
+		return
+	}
 	page, err := h.appService.ListApplicationsPage(c.Request.Context(), userID, domain.ApplicationQuery{
 		Search: search, Statuses: statuses, TagIDs: tagIDs, OrderBy: orderBy, Order: orderDir,
 		ArchiveState: c.Query("archive_state"), Limit: pageSize,
+		StartDate: startDate, EndDate: endDate, Metric: c.Query("metric"),
 	}, c.Query("page_token"))
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInput) {
@@ -173,6 +184,7 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 	}
 
 	resp := dto.ListApplicationsResponse{
+		TotalCount:    page.TotalCount,
 		Applications:  page.Applications,
 		NextPageToken: page.NextPageToken,
 	}
@@ -492,4 +504,22 @@ func (h *ApplicationHandler) GetStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+// Date-only filters use complete UTC calendar days, matching metrics cohorts.
+func parseApplicationDate(value string, end bool) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return &parsed, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, domain.ErrInvalidInput
+	}
+	if end {
+		parsed = parsed.AddDate(0, 0, 1).Add(-time.Nanosecond)
+	}
+	return &parsed, nil
 }
