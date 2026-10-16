@@ -213,16 +213,19 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 	}
 
 	total := 0
-	interviewOrBeyond := 0
 	for _, f := range funnel {
 		stats.FunnelByStatus[f.Status] = f.Count
 		total += f.Count
-		if f.Status == string(domain.StatusInterview) || f.Status == string(domain.StatusOffer) || f.Status == string(domain.StatusAccepted) {
-			interviewOrBeyond += f.Count
-		}
 	}
 	stats.TotalApplications = total
-	stats.KPIs.Interviews.Count = interviewOrBeyond
+	interviews, err := r.interviewCohortCounts(ctx, userID, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	stats.KPIs.Interviews.Count = int(interviews.InterviewCount)
+	if interviews.AppliedCount > 0 {
+		stats.KPIs.Interviews.Rate = float64(interviews.InterviewCount) / float64(interviews.AppliedCount)
+	}
 
 	stats.KPIs.Rejections.Count = stats.FunnelByStatus[string(domain.StatusRejected)]
 
@@ -248,7 +251,6 @@ func (r *ApplicationRepository) GetStatsByUserID(ctx context.Context, userID str
 
 	appliedOrBeyond := total - stats.FunnelByStatus[string(domain.StatusToApply)]
 	if appliedOrBeyond > 0 {
-		stats.KPIs.Interviews.Rate = float64(interviewOrBeyond) / float64(appliedOrBeyond)
 		stats.KPIs.Rejections.Rate = float64(stats.KPIs.Rejections.Count) / float64(appliedOrBeyond)
 		stats.KPIs.AdvancedRejections.Rate = float64(stats.KPIs.AdvancedRejections.Count) / float64(appliedOrBeyond)
 		stats.KPIs.DirectRejections.Rate = float64(stats.KPIs.DirectRejections.Count) / float64(appliedOrBeyond)
