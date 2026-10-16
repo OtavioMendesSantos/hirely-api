@@ -65,6 +65,21 @@ still works. Reducing the preference applies at the next pass, including old
 applications. Row locks with SKIP LOCKED avoid duplicate lifecycle events across
 instances. The separate preference DDL is `004_automatic_archiving.sql`.
 
+## Deleting events
+
+`DELETE /v1/users/:user_id/applications/:application_id/events/:event_id` removes
+any event permanently, including automatic status and archive events. It is also
+available for archived applications. Successful deletion returns 204; an event
+that does not belong to this application, or is already absent, returns 404.
+The application must belong to the authenticated account.
+
+Deletion does not replay history, undo status changes, restore applications, or
+create another event. The event deletion and activity timestamp update are one
+transaction. History-based metrics are calculated from the remaining events;
+removing the last evidence of an interview or offer can turn an advanced rejection
+into a direct rejection without changing the total number of rejections. The UI
+requires an explicit confirmation before calling this route.
+
 ## Verification
 
 Run `go test ./...`. To also run isolated PostgreSQL integration tests, set

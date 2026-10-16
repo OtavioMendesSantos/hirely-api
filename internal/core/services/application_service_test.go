@@ -305,3 +305,21 @@ func (m *mockAppRepo) AddEvent(ctx context.Context, userID, applicationID string
 	app.UpdatedAt = event.CreatedAt
 	return nil
 }
+
+func (m *mockAppRepo) DeleteEvent(ctx context.Context, userID, applicationID, eventID string, now time.Time) error {
+	app := m.apps[applicationID]
+	if app == nil {
+		return domain.ErrApplicationNotFound
+	}
+	if app.UserID != userID {
+		return domain.ErrForbidden
+	}
+	for i, event := range app.Events {
+		if event.ID == eventID {
+			app.Events = append(app.Events[:i], app.Events[i+1:]...)
+			app.UpdatedAt = now
+			return nil
+		}
+	}
+	return domain.ErrEventNotFound
+}

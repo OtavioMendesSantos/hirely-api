@@ -34,7 +34,10 @@ func archiveTestDB(t *testing.T) *gorm.DB {
 	if _, err := admin.Exec("CREATE SCHEMA " + schema); err != nil {
 		t.Fatal(err)
 	}
-	config.RuntimeParams["search_path"] = schema
+	if _, err := admin.Exec("CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public"); err != nil {
+		t.Fatal(err)
+	}
+	config.RuntimeParams["search_path"] = schema + ",public"
 	pool := stdlib.OpenDB(*config)
 	db, err := gorm.Open(pgdriver.New(pgdriver.Config{Conn: pool}), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
@@ -239,5 +242,52 @@ func TestPostgresPreferenceUpsertPreservesNeverAndOtherFields(t *testing.T) {
 	preferences, err = repo.Update(context.Background(), app.UserID, domain.UpdateUserPreferences{Theme: &dark})
 	if err != nil || preferences.AutoArchiveDays != 0 || preferences.ConfettiEnabled || preferences.Theme != "dark" {
 		t.Fatalf("omitted fields overwritten: %+v %v", preferences, err)
+	}
+}
+
+func TestPostgresDeleteEventsUpdatesActivityAndMetricsWithoutChangingState(t *testing.T) {
+	db := archiveTestDB(t)
+	repo, app := archiveFixture(t, db)
+	ctx := context.Background()
+	event := domain.NewAutomaticEvent(uuid.NewString(), app.ID, "Status changed", "INTERVIEW", "REJECTED")
+	if err := repo.AddEvent(ctx, app.UserID, app.ID, event); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := repo.SetArchived(ctx, app.UserID, app.ID, true, now); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := repo.GetStatsByUserID(ctx, app.UserID, nil, nil)
+	if err != nil || stats.KPIs.AdvancedRejections.Count != 1 {
+		t.Fatalf("initial metrics: %+v %v", stats, err)
+	}
+	_, other := archiveFixture(t, db)
+	if err := repo.DeleteEvent(ctx, other.UserID, app.ID, event.ID, now); err != domain.ErrForbidden {
+		t.Fatalf("ownership not checked: %v", err)
+	}
+	if err := repo.DeleteEvent(ctx, app.UserID, app.ID, uuid.NewString(), now); err != domain.ErrEventNotFound {
+		t.Fatalf("missing event accepted: %v", err)
+	}
+	if err := repo.DeleteEvent(ctx, app.UserID, app.ID, event.ID, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	loaded, _ := repo.FindByID(ctx, app.ID)
+	if loaded.Status != domain.StatusRejected || loaded.ArchivedAt == nil || len(loaded.Events) != 1 || !loaded.UpdatedAt.Equal(now.Add(time.Hour)) {
+		t.Fatalf("event delete changed application state: %+v", loaded)
+	}
+	stats, err = repo.GetStatsByUserID(ctx, app.UserID, nil, nil)
+	if err != nil || stats.KPIs.AdvancedRejections.Count != 0 || stats.KPIs.DirectRejections.Count != 1 || stats.KPIs.Rejections.Count != 1 {
+		t.Fatalf("metrics not recalculated: %+v %v", stats, err)
+	}
+	// Failure to record activity must roll back the physical event deletion too.
+	if err := db.Exec("ALTER TABLE applications ADD CONSTRAINT reject_activity_test CHECK (updated_at < '2100-01-01')").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.DeleteEvent(ctx, app.UserID, app.ID, loaded.Events[0].ID, time.Date(2101, 1, 1, 0, 0, 0, 0, time.UTC)); err == nil {
+		t.Fatal("expected activity update failure")
+	}
+	preserved, _ := repo.FindByID(ctx, app.ID)
+	if len(preserved.Events) != 1 {
+		t.Fatal("event deletion was not rolled back with activity update")
 	}
 }

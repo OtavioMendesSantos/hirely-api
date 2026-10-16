@@ -163,3 +163,10 @@ func applicationCursor(app *domain.Application, column string) domain.Applicatio
 	cursor.Value = &value
 	return cursor
 }
+
+func (s *ApplicationService) DeleteEvent(ctx context.Context, userID, applicationID, eventID string) error {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(applicationID) == "" || strings.TrimSpace(eventID) == "" {
+		return domain.ErrInvalidInput
+	}
+	return s.appRepo.DeleteEvent(ctx, userID, applicationID, eventID, time.Now().UTC())
+}

@@ -138,6 +138,7 @@ func setupAppRouter(appService *services.ApplicationService, userID string) *gin
 	r.POST("/v1/users/:user_id/applications/:application_id/restore", handler.Restore)
 	r.DELETE("/v1/users/:user_id/applications/:application_id", handler.Delete)
 	r.POST("/v1/users/:user_id/applications/:application_id/events", handler.AddEvent)
+	r.DELETE("/v1/users/:user_id/applications/:application_id/events/:event_id", handler.DeleteEvent)
 	r.GET("/v1/users/:user_id/applications/stats", handler.GetStats)
 
 	return r
@@ -474,5 +475,66 @@ func TestApplicationArchiveHTTP(t *testing.T) {
 	}
 	if rec := request("POST", "/v1/users/someone-else/applications/"+app.ID+"/archive", ""); rec.Code != 403 {
 		t.Fatalf("isolation: %d", rec.Code)
+	}
+}
+
+func (m *mockAppRepoForHandlerTest) DeleteEvent(ctx context.Context, userID, applicationID, eventID string, now time.Time) error {
+	app := m.apps[applicationID]
+	if app == nil {
+		return domain.ErrApplicationNotFound
+	}
+	if app.UserID != userID {
+		return domain.ErrForbidden
+	}
+	for i, event := range app.Events {
+		if event.ID == eventID {
+			app.Events = append(app.Events[:i], app.Events[i+1:]...)
+			app.UpdatedAt = now
+			return nil
+		}
+	}
+	return domain.ErrEventNotFound
+}
+
+func TestDeleteAnyEventHTTP(t *testing.T) {
+	repo := newMockAppRepoForHandlerTest()
+	service := services.NewApplicationService(repo, newMockEventRepoForHandlerTest(), newMockTagRepo())
+	router := setupAppRouter(service, "user-a")
+	app := domain.NewApplication("app-a", "user-a", "Acme", "Engineer", domain.StatusAccepted)
+	now := time.Now().UTC()
+	app.ArchivedAt = &now
+	app.Events = []domain.Event{
+		*domain.NewManualEvent("manual", app.ID, "A note"),
+		*domain.NewAutomaticEvent("automatic", app.ID, "Stage changed", "OFFER", "ACCEPTED"),
+		{ID: "archive", ApplicationID: app.ID, Type: domain.EventTypeAutomatic, Action: "ARCHIVED", CreatedAt: now},
+	}
+	repo.apps[app.ID] = app
+	for _, eventID := range []string{"manual", "automatic", "archive"} {
+		request := httptest.NewRequest("DELETE", "/v1/users/user-a/applications/app-a/events/"+eventID, nil)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != 204 {
+			t.Fatalf("delete %s: %d %s", eventID, response.Code, response.Body.String())
+		}
+		if app.Status != domain.StatusAccepted || app.ArchivedAt == nil {
+			t.Fatal("deletion changed application state")
+		}
+	}
+	if len(app.Events) != 0 {
+		t.Fatal("deletion left events or created a replacement event")
+	}
+	for _, test := range []struct {
+		path   string
+		status int
+	}{
+		{"/v1/users/user-a/applications/app-a/events/missing", 404},
+		{"/v1/users/user-b/applications/app-a/events/missing", 403},
+		{"/v1/users/user-a/applications/missing/events/manual", 404},
+	} {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest("DELETE", test.path, nil))
+		if response.Code != test.status {
+			t.Fatalf("%s: %d", test.path, response.Code)
+		}
 	}
 }

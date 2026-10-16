@@ -8,6 +8,7 @@ var (
 	ErrInvalidInput            = errors.New("invalid input parameters")
 	ErrUserNotFound            = errors.New("user not found")
 	ErrApplicationArchived     = errors.New("restore this application before editing it")
+	ErrEventNotFound           = errors.New("event not found")
 	ErrApplicationNotFound     = errors.New("application not found")
 	ErrTagNotFound             = errors.New("tag not found")
 	ErrTagAlreadyExists        = errors.New("tag with this name already exists")

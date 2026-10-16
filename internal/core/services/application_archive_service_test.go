@@ -107,3 +107,29 @@ func TestArchiveQueryDefaultsAndValidation(t *testing.T) {
 		t.Fatalf("legacy compatibility: %+v", legacy)
 	}
 }
+
+func TestDeleteEventDoesNotReplayHistory(t *testing.T) {
+	repo := newMockAppRepo()
+	service := NewApplicationService(repo, nil, nil)
+	app := domain.NewApplication(uuid.NewString(), "owner", "Acme", "Engineer", domain.StatusRejected)
+	app.UpdatedAt = time.Now().Add(-100 * 24 * time.Hour)
+	archived := time.Now().UTC()
+	app.ArchivedAt = &archived
+	app.Events = []domain.Event{*domain.NewAutomaticEvent("event-a", app.ID, "Status changed", "INTERVIEW", "REJECTED")}
+	repo.apps[app.ID] = app
+	if err := service.DeleteEvent(context.Background(), "other", app.ID, "event-a"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatal("other user could delete history")
+	}
+	if err := service.DeleteEvent(context.Background(), "owner", app.ID, "event-a"); err != nil {
+		t.Fatal(err)
+	}
+	if app.Status != domain.StatusRejected || app.ArchivedAt == nil || len(app.Events) != 0 || !app.UpdatedAt.After(app.CreatedAt.Add(-time.Second)) {
+		t.Fatal("deletion changed status/archive or failed to refresh activity")
+	}
+	if err := service.DeleteEvent(context.Background(), "owner", app.ID, "event-a"); !errors.Is(err, domain.ErrEventNotFound) {
+		t.Fatalf("missing event: %v", err)
+	}
+	if err := service.DeleteEvent(context.Background(), "owner", app.ID, ""); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatal("missing ID accepted")
+	}
+}

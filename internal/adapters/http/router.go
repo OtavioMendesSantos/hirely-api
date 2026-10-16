@@ -61,6 +61,7 @@ func SetupRoutes(
 			auth.POST("/users/:user_id/applications/:application_id/restore", appHandler.Restore)
 			auth.DELETE("/users/:user_id/applications/:application_id", appHandler.Delete)
 			auth.POST("/users/:user_id/applications/:application_id/events", appHandler.AddEvent)
+			auth.DELETE("/users/:user_id/applications/:application_id/events/:event_id", appHandler.DeleteEvent)
 			auth.GET("/users/:user_id/applications/stats", appHandler.GetStats)
 
 			auth.POST("/users/:user_id/tags", tagHandler.Create)

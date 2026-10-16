@@ -29,6 +29,8 @@ func applicationError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domain.ErrInvalidInput):
 		code, status, message = 400, "INVALID_ARGUMENT", "Invalid application filters or pagination token."
+	case errors.Is(err, domain.ErrEventNotFound):
+		code, status, message = 404, "NOT_FOUND", "Event not found."
 	case errors.Is(err, domain.ErrApplicationNotFound):
 		code, status, message = 404, "NOT_FOUND", "Application not found."
 	case errors.Is(err, domain.ErrForbidden):
@@ -39,4 +41,16 @@ func applicationError(c *gin.Context, err error) {
 		slog.ErrorContext(c.Request.Context(), "Application action failed", "error", err)
 	}
 	c.JSON(code, gin.H{"error": gin.H{"message": message, "status": status}})
+}
+
+func (h *ApplicationHandler) DeleteEvent(c *gin.Context) {
+	userID, ok := h.checkIsolation(c)
+	if !ok {
+		return
+	}
+	if err := h.appService.DeleteEvent(c.Request.Context(), userID, c.Param("application_id"), c.Param("event_id")); err != nil {
+		applicationError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
