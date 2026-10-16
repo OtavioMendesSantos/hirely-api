@@ -22,6 +22,6 @@ func (r *ApplicationRepository) DeleteEvent(ctx context.Context, userID, applica
 		if result.RowsAffected == 0 {
 			return domain.ErrEventNotFound
 		}
-		return tx.Model(app).UpdateColumn("updated_at", now).Error
+		return tx.Model(app).UpdateColumn("updated_at", gorm.Expr("GREATEST(updated_at, ?)", now.UTC())).Error
 	})
 }

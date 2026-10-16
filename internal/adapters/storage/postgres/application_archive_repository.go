@@ -67,7 +67,12 @@ func (r *ApplicationRepository) Query(ctx context.Context, userID string, input 
 			order += " NULLS LAST"
 		}
 	}
-	query = query.Order(order).Order("id " + direction)
+	if input.Limit == 0 && input.Cursor == nil {
+		// Keep the existing created-at tie-breaker for clients that do not paginate.
+		query = query.Order(getOrderClause(column, input.Order)).Order("id DESC")
+	} else {
+		query = query.Order(order).Order("id " + direction)
+	}
 	if input.Limit > 0 {
 		query = query.Limit(input.Limit + 1)
 	}
@@ -110,7 +115,7 @@ func changeArchiveState(tx *gorm.DB, model *ApplicationModel, archived bool, now
 	if !archived {
 		action, description = "UNARCHIVED", "Application restored to "+string(model.Status)+"."
 		changes["archived_at"] = nil
-		changes["updated_at"] = now
+		changes["updated_at"] = gorm.Expr("GREATEST(updated_at, ?)", now.UTC())
 	}
 	if reason != "" {
 		description = reason
@@ -139,6 +144,6 @@ func (r *ApplicationRepository) AddEvent(ctx context.Context, userID, applicatio
 		if err := tx.Create(EventFromDomain(event)).Error; err != nil {
 			return err
 		}
-		return tx.Model(model).UpdateColumn("updated_at", event.CreatedAt).Error
+		return tx.Model(model).UpdateColumn("updated_at", gorm.Expr("GREATEST(updated_at, ?)", event.CreatedAt.UTC())).Error
 	})
 }

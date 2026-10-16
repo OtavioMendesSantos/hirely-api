@@ -291,3 +291,26 @@ func TestPostgresDeleteEventsUpdatesActivityAndMetricsWithoutChangingState(t *te
 		t.Fatal("event deletion was not rolled back with activity update")
 	}
 }
+
+func TestPostgresEventActivityCannotMoveBackwards(t *testing.T) {
+	db := archiveTestDB(t)
+	repo, app := archiveFixture(t, db)
+	ctx := context.Background()
+	first := domain.NewManualEvent(uuid.NewString(), app.ID, "Recent note")
+	first.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
+	if err := repo.AddEvent(ctx, app.UserID, app.ID, first); err != nil {
+		t.Fatal(err)
+	}
+	stale := domain.NewManualEvent(uuid.NewString(), app.ID, "Request started earlier")
+	stale.CreatedAt = first.CreatedAt.Add(-time.Hour)
+	if err := repo.AddEvent(ctx, app.UserID, app.ID, stale); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.DeleteEvent(ctx, app.UserID, app.ID, stale.ID, stale.CreatedAt); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := repo.FindByID(ctx, app.ID)
+	if err != nil || !loaded.UpdatedAt.Equal(first.CreatedAt) {
+		t.Fatalf("activity date regressed: %+v %v", loaded, err)
+	}
+}

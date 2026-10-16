@@ -84,5 +84,5 @@ requires an explicit confirmation before calling this route.
 
 Run `go test ./...`. To also run isolated PostgreSQL integration tests, set
 `HIRELY_TEST_DATABASE_URL` to a disposable database where the test user may create
-schemas, then run the same command. Tests create a unique schema and remove it
+schemas and install the trusted `fuzzystrmatch` extension, then run the same command. Tests create a unique schema and remove it
 afterwards; they do not use the application's `.env` file.
