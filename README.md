@@ -42,7 +42,7 @@ Para facilitar o desenvolvimento e testes locais, você pode popular o banco de 
 # Na raiz do hirely-api:
 go run cmd/seed/main.go
 ```
-Isso criará um usuário de teste (`teste@hirely.com`) e gerará diversas aplicações em diferentes estágios do funil para visualizar no dashboard.
+Isso criará um usuário de teste e gerará diversas aplicações em diferentes estágios do funil para visualizar no dashboard.
 
 *(Consulte a pasta `docs/` para ler a especificação técnica detalhada da API e payloads de integração)*
 
